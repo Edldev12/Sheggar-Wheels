@@ -1,17 +1,107 @@
+"use client";
+
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { cars } from "@/data/cars";
+import { useEffect, useState } from "react";
+import { cars as sampleCars } from "@/data/cars";
 
-export function generateStaticParams() {
-  return cars.map((car) => ({ id: car.id }));
-}
+export default function CarDetailPage({ params }) {
+  const [car, setCar] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+  const [notFoundCar, setNotFoundCar] = useState(false);
 
-export default async function CarDetailPage({ params }) {
-  const { id } = await params;
-  const car = cars.find((item) => item.id === id);
+  useEffect(() => {
+    let active = true;
 
-  if (!car) {
-    notFound();
+    async function loadCar() {
+      try {
+        const resolvedParams = await params;
+        const id = String(resolvedParams.id);
+
+        const sampleCar = sampleCars.find(
+          (item) => String(item.id) === id
+        );
+
+        let ownerCars = [];
+
+        try {
+          const saved = JSON.parse(
+            localStorage.getItem("sheggar-cars") || "[]"
+          );
+
+          if (Array.isArray(saved)) {
+            ownerCars = saved;
+          }
+        } catch {
+          ownerCars = [];
+        }
+
+        const ownerCar = ownerCars.find(
+          (item) => String(item.id) === id
+        );
+
+        const foundCar = sampleCar || ownerCar;
+
+        if (active) {
+          setCar(
+            foundCar
+              ? {
+                ...foundCar,
+                price: Number(foundCar.price) || 0,
+                year: Number(foundCar.year) || "",
+                seats: Number(foundCar.seats) || 0,
+                rating: Number(foundCar.rating) || 0,
+                tag: foundCar.tag || "Owner listing",
+                transmission:
+                  foundCar.transmission || "Not specified",
+                description:
+                  foundCar.description || "Owner-provided car listing.",
+              }
+              : null
+          );
+
+          setNotFoundCar(!foundCar);
+          setLoaded(true);
+        }
+      } catch {
+        if (active) {
+          setNotFoundCar(true);
+          setLoaded(true);
+        }
+      }
+    }
+
+    loadCar();
+
+    return () => {
+      active = false;
+    };
+  }, [params]);
+
+  if (!loaded) {
+    return (
+      <main className="p-8 text-center text-slate-600">
+        Loading car details...
+      </main>
+    );
+  }
+
+  if (notFoundCar || !car) {
+    return (
+      <main className="mx-auto max-w-xl px-5 py-20 text-center">
+        <h1 className="text-3xl font-black text-slate-900">
+          Car not found
+        </h1>
+        <p className="mt-3 text-slate-600">
+          This car may have been removed or is no longer available.
+        </p>
+        <Link
+          href="/cars"
+          className="mt-6 inline-block rounded-xl bg-orange-500 px-5 py-3 font-bold text-white"
+        >
+          Browse cars
+        </Link>
+      </main>
+    );
   }
 
   return (
@@ -21,7 +111,6 @@ export default async function CarDetailPage({ params }) {
           <Link href="/" className="text-xl font-extrabold">
             🚗 Sheggar<span className="text-orange-500">Wheels</span>
           </Link>
-
           <Link
             href="/cars"
             className="text-sm font-bold text-slate-600 hover:text-orange-500"
@@ -33,13 +122,9 @@ export default async function CarDetailPage({ params }) {
 
       <section className="mx-auto max-w-7xl px-5 py-8 lg:px-8">
         <div className="mb-6 text-sm text-slate-500">
-          <Link href="/" className="hover:text-orange-500">
-            Home
-          </Link>
+          <Link href="/" className="hover:text-orange-500">Home</Link>
           {" / "}
-          <Link href="/cars" className="hover:text-orange-500">
-            Cars
-          </Link>
+          <Link href="/cars" className="hover:text-orange-500">Cars</Link>
           {" / "}
           <span className="font-semibold text-slate-800">{car.name}</span>
         </div>
@@ -50,7 +135,11 @@ export default async function CarDetailPage({ params }) {
               role="img"
               aria-label={car.name}
               className="min-h-[300px] rounded-3xl bg-slate-200 bg-cover bg-center sm:min-h-[460px]"
-              style={{ backgroundImage: `url("${car.image}")` }}
+              style={
+                car.image
+                  ? { backgroundImage: `url("${car.image}")` }
+                  : undefined
+              }
             />
 
             <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
@@ -66,9 +155,8 @@ export default async function CarDetailPage({ params }) {
                     {car.year} · {car.type}
                   </p>
                 </div>
-
                 <span className="rounded-xl bg-orange-50 px-4 py-2 font-extrabold text-orange-600">
-                  ★ {car.rating}
+                  ★ {car.rating || "New"}
                 </span>
               </div>
 
@@ -83,12 +171,9 @@ export default async function CarDetailPage({ params }) {
                   ["🚘", "Vehicle type", car.type],
                   ["📅", "Model year", String(car.year)],
                   ["📍", "Location", car.location],
-                  ["⭐", "Rating", `${car.rating} / 5`],
+                  ["⭐", "Rating", car.rating ? `${car.rating} / 5` : "Not rated"],
                 ].map(([icon, label, value]) => (
-                  <div
-                    key={label}
-                    className="rounded-xl bg-slate-50 p-4"
-                  >
+                  <div key={label} className="rounded-xl bg-slate-50 p-4">
                     <span className="text-xl">{icon}</span>
                     <p className="mt-3 text-xs font-semibold text-slate-500">
                       {label}
@@ -105,7 +190,6 @@ export default async function CarDetailPage({ params }) {
               <p className="text-sm font-semibold text-slate-500">
                 Rental price
               </p>
-
               <div className="mt-2 flex items-baseline gap-2">
                 <span className="text-3xl font-black text-orange-600">
                   ETB {car.price.toLocaleString("en-US")}
