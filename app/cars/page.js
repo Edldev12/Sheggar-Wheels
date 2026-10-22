@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cars } from "@/data/cars";
 
 export default function CarsPage() {
@@ -9,9 +9,47 @@ export default function CarsPage() {
   const [type, setType] = useState("All");
   const [maxPrice, setMaxPrice] = useState("All");
   const [sort, setSort] = useState("recommended");
+  const [ownerCars, setOwnerCars] = useState([]);
 
+  useEffect(() => {
+    function loadOwnerCars() {
+      try {
+        const saved = JSON.parse(
+          localStorage.getItem("sheggar-cars") || "[]"
+        );
+
+        setOwnerCars(Array.isArray(saved) ? saved : []);
+      } catch {
+        setOwnerCars([]);
+      }
+    }
+
+    loadOwnerCars();
+
+    window.addEventListener("storage", loadOwnerCars);
+
+    return () => {
+      window.removeEventListener("storage", loadOwnerCars);
+    };
+  }, []);
+
+  const allCars = useMemo(() => {
+    return [
+      ...cars,
+      ...ownerCars.map((car) => ({
+        ...car,
+        tag: car.tag || "Owner listing",
+        rating: Number(car.rating) || 0,
+        year: Number(car.year),
+        price: Number(car.price),
+        seats: Number(car.seats),
+        transmission: car.transmission || "Not specified",
+        description: car.description || "Owner-provided car listing.",
+      })),
+    ];
+  }, [ownerCars]);
   const filteredCars = useMemo(() => {
-    let results = cars.filter((car) => {
+    let results = allCars.filter((car) => {
       const query = search.toLowerCase().trim();
 
       const matchesSearch =
@@ -36,7 +74,7 @@ export default function CarsPage() {
     }
 
     return results;
-  }, [search, type, maxPrice, sort]);
+  }, [allCars, search, type, maxPrice, sort]);
 
   function clearFilters() {
     setSearch("");
@@ -110,6 +148,9 @@ export default function CarsPage() {
                 <option value="Economy">Economy</option>
                 <option value="Sedan">Sedan</option>
                 <option value="SUV">SUV</option>
+                <option value="Hatchback">Hatchback</option>
+                <option value="Luxury">Luxury</option>
+                <option value="Van">Van</option>
                 <option value="Premium">Premium</option>
                 <option value="Pickup">Pickup</option>
               </select>
