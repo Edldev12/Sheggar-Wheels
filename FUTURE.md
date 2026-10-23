@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-Sheggar Wheels is currently a frontend capstone demonstration. The following improvements describe how it could evolve into a reliable, secure car-rental marketplace.
+Sheggar Wheels is currently a frontend capstone demonstration. The following items are proposed improvements for evolving it into a reliable, secure car-rental marketplace. They are future plans, not claims about existing functionality.
 
 ## 2. Backend and Database
 
@@ -55,7 +55,7 @@ Sheggar Wheels is currently a frontend capstone demonstration. The following imp
 - Add unit tests and end-to-end tests for important user flows.
 - Add automated linting and production-build checks.
 - Monitor production errors and availability.
-- Measure performance using real Lighthouse and field data.
+- Measure performance using actual Lighthouse and field data.
 - Document deployment, recovery, and maintenance procedures.
 
 ## 9. Suggested Priority
