@@ -1,9 +1,11 @@
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { cars as sampleCars } from "@/data/cars";
+import AdminCarDetails from "@/components/AdminCarDetails";
 
 const emptyForm = {
   name: "",
@@ -24,6 +26,7 @@ export default function AdminCarsPage() {
   const [loaded, setLoaded] = useState(false);
   const [editingCar, setEditingCar] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [selectedCar, setSelectedCar] = useState(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -263,7 +266,7 @@ export default function AdminCarsPage() {
     }
 
     const confirmed = window.confirm(
-      `Delete "${car.name || "Unnamed car"}" ? This action cannot be undone.`
+      `Delete "${car.name || "Unnamed car"}"? This action cannot be undone.`
     );
 
     if (!confirmed) return;
@@ -488,13 +491,12 @@ export default function AdminCarsPage() {
                   The first URL becomes the main photo. Leave blank to remove
                   all photos.
                 </span>
-              </label >
+              </label>
 
-              {
-                form.imagesText
-                  .split("\n")
-                  .map((url) => url.trim())
-                  .filter(Boolean).length > 0 && (
+              {form.imagesText
+                .split("\n")
+                .map((url) => url.trim())
+                .filter(Boolean).length > 0 && (
                   <div className="grid grid-cols-2 gap-3 sm:col-span-2 sm:grid-cols-4">
                     {form.imagesText
                       .split("\n")
@@ -526,10 +528,9 @@ export default function AdminCarsPage() {
                         </div>
                       ))}
                   </div>
-                )
-              }
+                )}
 
-              < div className="flex flex-wrap gap-3 sm:col-span-2" >
+              <div className="flex flex-wrap gap-3 sm:col-span-2">
                 <button
                   type="submit"
                   className="rounded-xl bg-orange-500 px-6 py-3 font-semibold text-white transition hover:bg-orange-400"
@@ -544,9 +545,9 @@ export default function AdminCarsPage() {
                 >
                   Cancel
                 </button>
-              </div >
-            </form >
-          </section >
+              </div>
+            </form>
+          </section>
         )}
 
         <section className="mt-8 rounded-2xl border border-white/10 bg-slate-900 p-4 sm:p-6">
@@ -590,39 +591,52 @@ export default function AdminCarsPage() {
                       className="border-t border-white/10"
                     >
                       <td className="p-4">
-                        <div className="relative h-14 w-20 overflow-hidden rounded-lg border border-white/10 bg-slate-950">
-                          <Image
-                            src={
-                              car.images?.[0] ||
-                              car.image ||
-                              "/cars/car-placeholder.png"
-                            }
-                            alt={car.name || "Car"}
-                            fill
-                            sizes="80px"
-                            className="object-cover"
-                            loading="lazy"
-                            unoptimized
-                          />
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCar(car)}
+                          className="cursor-pointer text-left"
+                          aria-label={`View details for ${car.name || "car"}`}
+                        >
+                          <div className="relative h-14 w-20 overflow-hidden rounded-lg border border-white/10 bg-slate-950">
+                            <Image
+                              src={
+                                car.images?.[0] ||
+                                car.image ||
+                                "/cars/car-placeholder.png"
+                              }
+                              alt={car.name || "Car"}
+                              fill
+                              sizes="80px"
+                              className="object-cover"
+                              loading="lazy"
+                              unoptimized
+                            />
+                          </div>
 
-                        {(car.images?.length || (car.image ? 1 : 0)) > 1 && (
-                          <p className="mt-1 text-xs text-slate-500">
-                            {car.images?.length || 1} photos
-                          </p>
-                        )}
+                          {(car.images?.length || (car.image ? 1 : 0)) > 1 && (
+                            <p className="mt-1 text-xs text-slate-500">
+                              {car.images?.length || 1} photos
+                            </p>
+                          )}
+                        </button>
                       </td>
 
                       <td className="p-4">
-                        <p className="font-semibold">
-                          {car.name || "Unnamed car"}
-                          {car.year ? ` (${car.year})` : ""}
-                        </p>
-                        {car.type && (
-                          <p className="mt-1 text-xs text-slate-500">
-                            {car.type}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCar(car)}
+                          className="text-left font-semibold hover:text-cyan-400"
+                        >
+                          <p className="font-semibold">
+                            {car.name || "Unnamed car"}
+                            {car.year ? ` (${car.year})` : ""}
                           </p>
-                        )}
+                          {car.type && (
+                            <p className="mt-1 text-xs text-slate-500">
+                              {car.type}
+                            </p>
+                          )}
+                        </button>
                       </td>
 
                       <td className="p-4 text-xs text-slate-400">
@@ -658,7 +672,6 @@ export default function AdminCarsPage() {
                           >
                             Delete
                           </button>
-
                         </div>
                       </td>
                     </tr>
@@ -684,7 +697,22 @@ export default function AdminCarsPage() {
           synchronized across devices. The client-side admin check is not
           server-side security.
         </p>
-      </div >
-    </main >
+      </div>
+
+      {selectedCar && (
+        <AdminCarDetails
+          car={selectedCar}
+          onClose={() => setSelectedCar(null)}
+          onEdit={(car) => {
+            setSelectedCar(null);
+            startEditing(car);
+          }}
+          onDelete={(car) => {
+            setSelectedCar(null);
+            deleteCar(car);
+          }}
+        />
+      )}
+    </main>
   );
 }
