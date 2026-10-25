@@ -43,7 +43,13 @@ export default function SigninPage() {
 
       sessionStorage.setItem("sheggar-session", JSON.stringify(account));
 
-      router.push(account.role === "admin" ? "/admin" : "/");
+      if (account.role === "admin") {
+        router.push("/admin");
+      } else if (account.role === "owner") {
+        router.push("/owener/dashboard");
+      } else {
+        router.push("/");
+      }
     } catch (error) {
       console.error("Sign-in error:", error);
       setError("Unable to sign in. Please try again.");
