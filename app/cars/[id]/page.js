@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { cars as sampleCars } from "@/data/cars";
+import BookingMapLoader from "@/components/BookingMapLoader";
 
 export default function CarDetailPage({ params }) {
   const [car, setCar] = useState(null);
@@ -261,6 +262,57 @@ export default function CarDetailPage({ params }) {
                   </div>
                 ))}
               </div>
+            </div>
+            {/* Car address and map */}
+            <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
+              <h2 className="text-2xl font-black">
+                📍 Car Location
+              </h2>
+
+              <p className="mt-2 text-slate-600">
+                {car.location || "Address not provided"}
+              </p>
+
+              {car.coordinates &&
+                Number.isFinite(Number(car.coordinates.latitude)) &&
+                Number.isFinite(Number(car.coordinates.longitude)) ? (
+                <>
+                  <div className="mt-5 overflow-hidden rounded-xl">
+                    <BookingMapLoader
+                      initialPosition={[
+                        Number(car.coordinates.latitude),
+                        Number(car.coordinates.longitude),
+                      ]}
+                      selectedPosition={[
+                        Number(car.coordinates.latitude),
+                        Number(car.coordinates.longitude),
+                      ]}
+                    />
+                  </div>
+
+                  <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+                    <p>
+                      <strong>Latitude:</strong>{" "}
+                      {Number(car.coordinates.latitude).toFixed(6)}
+                    </p>
+                    <p className="mt-1">
+                      <strong>Longitude:</strong>{" "}
+                      {Number(car.coordinates.longitude).toFixed(6)}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="mt-5 rounded-xl bg-orange-50 p-5 text-sm text-orange-800">
+                  <p className="font-bold">
+                    Map location not available
+                  </p>
+                  <p className="mt-1">
+                    This car does not have saved map coordinates yet.
+                    The owner needs to edit the listing and select a
+                    location on the map.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
