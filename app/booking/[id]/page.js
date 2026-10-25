@@ -1,6 +1,6 @@
-
 "use client";
 
+import BookingMapLoader from "@/components/BookingMapLoader";
 import { use, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -15,18 +15,20 @@ export default function BookingPage({ params }) {
 
   const [session, setSession] = useState(null);
   const [sessionLoaded, setSessionLoaded] = useState(false);
+  const [locationSearchLoading, setLocationSearchLoading] = useState(false);
   const [pickupDate, setPickupDate] = useState("");
   const [returnDate, setReturnDate] = useState("");
   const [phone, setPhone] = useState("");
   const [pickupLocation, setPickupLocation] = useState("");
+  const [pickupCoordinates, setPickupCoordinates] = useState(null);
   const [returnLocation, setReturnLocation] = useState("");
   const [error, setError] = useState("");
 
   const todayString = useMemo(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
 
     return `${year}-${month}-${day}`;
   }, []);
@@ -38,62 +40,89 @@ export default function BookingPage({ params }) {
     const end = new Date(`${returnDate}T00:00:00`);
     const difference = end.getTime() - start.getTime();
 
-    return difference > 0
-      ? Math.ceil(difference / (1000 * 60 * 60 * 24))
-      : 0;
+    if (difference <= 0) return 0;
+
+    return Math.ceil(difference / (1000 * 60 * 60 * 24));
   }, [pickupDate, returnDate]);
 
-  // Load the session after the component mounts.
+  const totalPrice = rentalDays * Number(car?.price || 0);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
-        const savedSession = JSON.parse(
-          sessionStorage.getItem("sheggar-session") || "null"
-        );
+        const savedSession = sessionStorage.getItem("sheggar-session");
 
-        if (savedSession?.id && savedSession?.email) {
-          setSession(savedSession);
-        } else {
-          setSession(null);
-        }
+        setSession(savedSession ? JSON.parse(savedSession) : null);
       } catch {
         setSession(null);
-      } finally {
-        setSessionLoaded(true);
       }
+
+      setSessionLoaded(true);
     }, 0);
 
     return () => window.clearTimeout(timer);
   }, []);
+  async function findPickupLocation() {
+    const query = pickupLocation.trim();
 
+    if (!query) {
+      setError("Enter a pickup address first.");
+      return;
+    }
+
+    setError("");
+    setLocationSearchLoading(true);
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=et&q=${encodeURIComponent(query)}`
+      );
+
+      if (!response.ok) {
+        throw new Error("Location search failed.");
+      }
+
+      const results = await response.json();
+
+      if (!results.length) {
+        setError("Location not found. Try a more specific address.");
+        return;
+      }
+
+      const result = results[0];
+      const latitude = Number(result.lat);
+      const longitude = Number(result.lon);
+
+      setPickupLocation(result.display_name);
+      setPickupCoordinates({ latitude, longitude });
+    } catch {
+      setError("Could not find the location. Check your internet and try again.");
+    } finally {
+      setLocationSearchLoading(false);
+    }
+  }
   function handleBooking(event) {
     event.preventDefault();
     setError("");
 
-    if (!car) {
-      setError("This car could not be found.");
-      return;
-    }
-
-    let currentSession = null;
+    let currentSession = session;
 
     try {
-      currentSession = JSON.parse(
-        sessionStorage.getItem("sheggar-session") || "null"
-      );
+      const savedSession = sessionStorage.getItem("sheggar-session");
+      currentSession = savedSession ? JSON.parse(savedSession) : null;
     } catch {
       currentSession = null;
     }
 
-    if (!currentSession?.id || !currentSession?.email) {
+    if (!currentSession) {
       router.push(
-        `/signin?next=${encodeURIComponent(`/booking/${car.id}`)}`
+        `/signin?next=${encodeURIComponent(`/booking/${id}`)}`
       );
       return;
     }
 
     if (!pickupDate || !returnDate) {
-      setError("Please select your pickup and return dates.");
+      setError("Please select both pickup and return dates.");
       return;
     }
 
@@ -107,61 +136,58 @@ export default function BookingPage({ params }) {
       return;
     }
 
-    if (
-      !phone.trim() ||
-      !pickupLocation.trim() ||
-      !returnLocation.trim()
-    ) {
+    if (!phone.trim() || !pickupLocation.trim() || !returnLocation.trim()) {
       setError("Please complete your phone number and both locations.");
       return;
     }
 
-    if (!rentalDays || !Number.isFinite(Number(car.price))) {
-      setError("Please check the rental dates and car price.");
+    if (!pickupCoordinates) {
+      setError("Please select your pickup point on the map.");
+      return;
+    }
+
+    if (rentalDays < 1) {
+      setError("Please select valid rental dates.");
       return;
     }
 
     const booking = {
-      id: crypto.randomUUID(),
-      userId: currentSession.id,
-      userName: currentSession.name || "",
-      userEmail: currentSession.email,
-      phone: phone.trim(),
+      id: `booking-${Date.now()}`,
       carId: car.id,
       carName: car.name,
-      carImage: car.image || "",
+      carImage: car.image,
+      pricePerDay: Number(car.price),
       pickupDate,
       returnDate,
-      pickupLocation: pickupLocation.trim(),
-      returnLocation: returnLocation.trim(),
       rentalDays,
-      dailyPrice: Number(car.price),
-      totalPrice: rentalDays * Number(car.price),
+      totalPrice,
+      phone: phone.trim(),
+      pickupLocation: pickupLocation.trim(),
+      pickupCoordinates,
+      returnLocation: returnLocation.trim(),
       status: "Pending",
       createdAt: new Date().toISOString(),
+      customer: currentSession,
     };
 
     try {
-      const savedBookings = JSON.parse(
+      const existingBookings = JSON.parse(
         localStorage.getItem("sheggar-bookings") || "[]"
       );
 
-      if (!Array.isArray(savedBookings)) {
-        throw new Error("Invalid bookings data.");
-      }
+      const bookings = Array.isArray(existingBookings)
+        ? existingBookings
+        : [];
 
-      savedBookings.push(booking);
+      bookings.push(booking);
 
-      localStorage.setItem(
-        "sheggar-bookings",
-        JSON.stringify(savedBookings)
-      );
+      localStorage.setItem("sheggar-bookings", JSON.stringify(bookings));
 
       router.push(
         `/booking/confirmation?id=${encodeURIComponent(booking.id)}`
       );
     } catch {
-      setError("Could not save your booking. Please try again.");
+      setError("Unable to save your booking. Please try again.");
     }
   }
 
@@ -171,11 +197,11 @@ export default function BookingPage({ params }) {
         <div className="mx-auto max-w-2xl text-center">
           <h1 className="text-3xl font-bold">Car not found</h1>
           <p className="mt-3 text-slate-400">
-            This car may have been removed from the catalogue.
+            The car you selected may no longer be available.
           </p>
           <Link
             href="/cars"
-            className="mt-6 inline-block rounded-xl bg-orange-500 px-6 py-3 font-semibold text-white hover:bg-orange-400"
+            className="mt-6 inline-block rounded-xl bg-orange-500 px-6 py-3 font-semibold text-white hover:bg-orange-600"
           >
             Browse cars
           </Link>
@@ -186,142 +212,39 @@ export default function BookingPage({ params }) {
 
   if (!sessionLoaded) {
     return (
-      <main className="min-h-screen bg-slate-950 p-10 text-white">
-        <p className="text-center text-slate-300">
-          Loading booking details...
-        </p>
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+        <p className="text-slate-400">Loading booking form...</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-10 text-white sm:px-6 lg:py-16">
+    <main className="min-h-screen bg-slate-950 px-4 py-10 text-white sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
         <Link
-          href={`/cars/${car.id}`}
-          className="text-sm text-orange-400 hover:text-orange-300"
+          href="/cars"
+          className="mb-6 inline-flex items-center gap-2 text-sm text-slate-400 transition hover:text-orange-400"
         >
-          ← Back to car details
+          ← Back to cars
         </Link>
 
-        <div className="mb-8 mt-6">
-          <h1 className="text-3xl font-bold sm:text-4xl">
+        <div className="mb-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-orange-400">
+            Sheggar Wheels
+          </p>
+          <h1 className="mt-2 text-3xl font-bold sm:text-4xl">
             Book your car
           </h1>
-          <p className="mt-2 text-slate-400">
-            Complete the details below to request your rental.
+          <p className="mt-3 text-slate-400">
+            Complete your rental details and choose your pickup point on the map.
           </p>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
+        <div className="grid items-start gap-8 lg:grid-cols-[1fr_380px]">
           <form
             onSubmit={handleBooking}
-            className="rounded-2xl border border-white/10 bg-slate-900 p-5 sm:p-8"
+            className="space-y-7 rounded-3xl border border-white/10 bg-slate-900/70 p-5 sm:p-8"
           >
-            <section>
-              <h2 className="text-xl font-bold">Renter information</h2>
-              <p className="mt-1 text-sm text-slate-400">
-                Your account details are used for this booking.
-              </p>
-
-              <div className="mt-5 grid gap-5 sm:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm text-slate-300">
-                    Full name
-                  </label>
-                  <input
-                    type="text"
-                    value={session?.name || ""}
-                    readOnly
-                    placeholder="Sign in to load your name"
-                    className="w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm text-slate-300">
-                    Email address
-                  </label>
-                  <input
-                    type="email"
-                    value={session?.email || ""}
-                    readOnly
-                    placeholder="Sign in to load your email"
-                    className="w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label
-                    htmlFor="phone"
-                    className="mb-2 block text-sm text-slate-300"
-                  >
-                    Phone number
-                  </label>
-                  <input
-                    id="phone"
-                    type="tel"
-                    autoComplete="tel"
-                    value={phone}
-                    onChange={(event) => setPhone(event.target.value)}
-                    placeholder="Enter your phone number"
-                    required
-                    className="w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-orange-500"
-                  />
-                </div>
-              </div>
-            </section>
-
-            <div className="my-8 border-t border-white/10" />
-
-            <section>
-              <h2 className="text-xl font-bold">Pickup and return</h2>
-
-              <div className="mt-5 grid gap-5 sm:grid-cols-2">
-                <div>
-                  <label
-                    htmlFor="pickupLocation"
-                    className="mb-2 block text-sm text-slate-300"
-                  >
-                    Pickup location
-                  </label>
-                  <input
-                    id="pickupLocation"
-                    type="text"
-                    value={pickupLocation}
-                    onChange={(event) =>
-                      setPickupLocation(event.target.value)
-                    }
-                    placeholder="e.g. Sar Bet, Addis Ababa"
-                    required
-                    className="w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-orange-500"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="returnLocation"
-                    className="mb-2 block text-sm text-slate-300"
-                  >
-                    Return location
-                  </label>
-                  <input
-                    id="returnLocation"
-                    type="text"
-                    value={returnLocation}
-                    onChange={(event) =>
-                      setReturnLocation(event.target.value)
-                    }
-                    placeholder="Enter return location"
-                    required
-                    className="w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-orange-500"
-                  />
-                </div>
-              </div>
-            </section>
-
-            <div className="my-8 border-t border-white/10" />
-
             <section>
               <h2 className="text-xl font-bold">Rental dates</h2>
 
@@ -329,7 +252,7 @@ export default function BookingPage({ params }) {
                 <div>
                   <label
                     htmlFor="pickupDate"
-                    className="mb-2 block text-sm text-slate-300"
+                    className="mb-2 block text-sm font-medium text-slate-300"
                   >
                     Pickup date
                   </label>
@@ -343,14 +266,14 @@ export default function BookingPage({ params }) {
                       setError("");
                     }}
                     required
-                    className="w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none [color-scheme:dark] focus:border-orange-500"
+                    className="w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-orange-400"
                   />
                 </div>
 
                 <div>
                   <label
                     htmlFor="returnDate"
-                    className="mb-2 block text-sm text-slate-300"
+                    className="mb-2 block text-sm font-medium text-slate-300"
                   >
                     Return date
                   </label>
@@ -364,123 +287,207 @@ export default function BookingPage({ params }) {
                       setError("");
                     }}
                     required
-                    className="w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none [color-scheme:dark] focus:border-orange-500"
+                    className="w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-orange-400"
                   />
                 </div>
               </div>
             </section>
 
+            <section className="border-t border-white/10 pt-7">
+              <h2 className="text-xl font-bold">Contact information</h2>
+
+              <div className="mt-5">
+                <label
+                  htmlFor="phone"
+                  className="mb-2 block text-sm font-medium text-slate-300"
+                >
+                  Phone number
+                </label>
+                <input
+                  id="phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(event) => setPhone(event.target.value)}
+                  placeholder="Enter your phone number"
+                  required
+                  className="w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-orange-400"
+                />
+              </div>
+            </section>
+
+            <section className="border-t border-white/10 pt-7">
+              <h2 className="text-xl font-bold">Pickup and return</h2>
+              <p className="mt-2 text-sm text-slate-400">
+                Enter your locations, then click the map to select the exact
+                pickup point.
+              </p>
+
+              <div className="mt-5 grid gap-5 sm:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor="pickupLocation"
+                    className="mb-2 block text-sm font-medium text-slate-300"
+                  >
+                    Pickup address
+                  </label>
+
+                  <input
+                    id="pickupLocation"
+                    type="text"
+                    value={pickupLocation}
+                    onChange={(event) => {
+                      setPickupLocation(event.target.value);
+                      setPickupCoordinates(null);
+                      setError("");
+                    }}
+                    placeholder="e.g. Bole, Addis Ababa"
+                    required
+                    className="w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-orange-400"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={findPickupLocation}
+                    disabled={locationSearchLoading}
+                    className="mt-3 rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-60"
+                  >
+                    {locationSearchLoading ? "Finding location..." : "Find location"}
+                  </button>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="returnLocation"
+                    className="mb-2 block text-sm font-medium text-slate-300"
+                  >
+                    Return address
+                  </label>
+
+                  <input
+                    id="returnLocation"
+                    type="text"
+                    value={returnLocation}
+                    onChange={(event) => setReturnLocation(event.target.value)}
+                    placeholder="Enter return address"
+                    required
+                    className="w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-orange-400"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <BookingMapLoader
+                    selectedPosition={
+                      pickupCoordinates
+                        ? [pickupCoordinates.latitude, pickupCoordinates.longitude]
+                        : undefined
+                    }
+                    onLocationSelect={({ latitude, longitude }) => {
+                      setPickupCoordinates({ latitude, longitude });
+                      setError("");
+                    }}
+                  />
+
+                  {pickupCoordinates && (
+                    <p className="mt-3 text-sm text-slate-400">
+                      Selected coordinates: {pickupCoordinates.latitude.toFixed(6)},{" "}
+                      {pickupCoordinates.longitude.toFixed(6)}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+            </section>
+
             {error && (
               <div
                 role="alert"
-                className="mt-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300"
+                className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300"
               >
                 {error}
               </div>
             )}
 
-            <section className="mt-8 rounded-2xl bg-slate-950 p-5">
-              <div className="flex items-center justify-between gap-4 text-sm">
-                <span className="text-slate-400">Rental duration</span>
-                <span className="font-semibold">
-                  {rentalDays} {rentalDays === 1 ? "day" : "days"}
-                </span>
-              </div>
-
-              <div className="mt-4 flex items-center justify-between gap-4 text-sm">
-                <span className="text-slate-400">Daily rate</span>
-                <span>
-                  {Number(car.price).toLocaleString()} ETB
-                </span>
-              </div>
-
-              <div className="mt-4 flex items-center justify-between gap-4 border-t border-white/10 pt-4">
-                <span className="font-semibold">Estimated total</span>
-                <span className="text-2xl font-bold text-orange-400">
-                  {(rentalDays * Number(car.price)).toLocaleString()} ETB
-                </span>
-              </div>
-            </section>
-
             <button
               type="submit"
-              className="mt-7 w-full rounded-xl bg-orange-500 px-5 py-4 font-bold text-white transition hover:bg-orange-400"
+              className="w-full rounded-xl bg-orange-500 px-6 py-4 font-bold text-white transition hover:bg-orange-600"
             >
               Confirm booking
             </button>
 
-            <p className="mt-4 text-center text-xs text-slate-500">
-              Demo only · No real payment is collected
+            <p className="text-center text-xs text-slate-500">
+              Please verify your rental dates and locations before confirming.
             </p>
           </form>
 
-          <aside className="h-fit overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
-            <div className="relative h-56 bg-slate-800">
-              {car.image && (
-                <Image
-                  src={car.image}
-                  alt={car.name}
-                  fill
-                  sizes="(max-width: 1024px) 100vw, 380px"
-                  className="object-cover"
-                  unoptimized
-                />
-              )}
+          <aside className="overflow-hidden rounded-3xl border border-white/10 bg-slate-900/70">
+            <div className="relative h-56">
+              <Image
+                src={car.image}
+                alt={car.name}
+                fill
+                sizes="(max-width: 1024px) 100vw, 380px"
+                className="object-cover"
+                unoptimized
+              />
             </div>
 
             <div className="p-6">
-              <p className="text-sm text-orange-400">
-                {car.category || "Rental car"}
+              <p className="text-sm font-semibold uppercase tracking-wider text-orange-400">
+                Your selected car
               </p>
 
               <h2 className="mt-2 text-2xl font-bold">{car.name}</h2>
 
               <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-300">
+                {car.category && (
+                  <span className="rounded-full bg-white/5 px-3 py-2">
+                    {car.category}
+                  </span>
+                )}
                 {car.transmission && (
-                  <span className="rounded-full bg-slate-800 px-3 py-2">
+                  <span className="rounded-full bg-white/5 px-3 py-2">
                     {car.transmission}
                   </span>
                 )}
-
                 {car.seats && (
-                  <span className="rounded-full bg-slate-800 px-3 py-2">
+                  <span className="rounded-full bg-white/5 px-3 py-2">
                     {car.seats} seats
-                  </span>
-                )}
-
-                {car.fuelType && (
-                  <span className="rounded-full bg-slate-800 px-3 py-2">
-                    {car.fuelType}
                   </span>
                 )}
               </div>
 
               <div className="mt-6 border-t border-white/10 pt-5">
-                <p className="text-sm text-slate-400">Price per day</p>
-                <p className="mt-1 text-3xl font-bold">
-                  {Number(car.price).toLocaleString()}{" "}
-                  <span className="text-base font-medium text-slate-400">
-                    ETB/day
+                <div className="flex items-center justify-between text-sm text-slate-400">
+                  <span>Price per day</span>
+                  <span>
+                    ETB {Number(car.price).toLocaleString()}
                   </span>
-                </p>
-              </div>
+                </div>
 
-              <div className="mt-5 rounded-xl bg-slate-950 p-4">
-                <p className="text-sm text-slate-400">Booking estimate</p>
-                <p className="mt-1 text-xl font-bold text-orange-400">
-                  {(rentalDays * Number(car.price)).toLocaleString()} ETB
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {rentalDays > 0
-                    ? `For ${rentalDays} ${rentalDays === 1 ? "day" : "days"
-                    }`
-                    : "Choose your dates to calculate the total"}
-                </p>
+                <div className="mt-3 flex items-center justify-between text-sm text-slate-400">
+                  <span>Rental duration</span>
+                  <span>
+                    {rentalDays} {rentalDays === 1 ? "day" : "days"}
+                  </span>
+                </div>
+
+                <div className="mt-5 flex items-center justify-between border-t border-white/10 pt-5">
+                  <span className="font-semibold">Total price</span>
+                  <span className="text-2xl font-bold text-orange-400">
+                    ETB {totalPrice.toLocaleString()}
+                  </span>
+                </div>
+
+                {!rentalDays && (
+                  <p className="mt-3 text-xs text-slate-500">
+                    Select your pickup and return dates to calculate the total.
+                  </p>
+                )}
               </div>
             </div>
           </aside>
         </div>
       </div>
-    </main>
+    </main >
   );
 }
