@@ -1,7 +1,13 @@
+
 "use client";
-import Image from "next/image";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
+
+const STORAGE_KEY = "sheggar-cars";
+const MAX_PHOTOS = 5;
+const MAX_PHOTO_SIZE = 350 * 1024;
 
 const EMPTY_FORM = {
   name: "",
@@ -11,17 +17,45 @@ const EMPTY_FORM = {
   seats: "5",
   price: "",
   location: "Addis Ababa",
-  image: "",
   description: "",
 };
 
-const STORAGE_KEY = "sheggar-cars";
+function getCarImages(car) {
+  const images = Array.isArray(car.images)
+    ? car.images.filter((image) => typeof image === "string" && image.trim())
+    : [];
+
+  if (images.length > 0) return [...new Set(images)];
+
+  return car.image ? [car.image] : [];
+}
+
+function getPhotoUrls(value) {
+  return value
+    .split(/\r?\n/)
+    .map((url) => url.trim())
+    .filter(Boolean);
+}
+
+function isValidImageUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
 
 export default function OwnerCarsPage() {
   const [session, setSession] = useState(null);
   const [cars, setCars] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
+
+  const [photoUrls, setPhotoUrls] = useState("");
+  const [uploadedImages, setUploadedImages] = useState([]);
+  const [existingImages, setExistingImages] = useState([]);
+
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -36,13 +70,19 @@ export default function OwnerCarsPage() {
 
         setSession(savedSession ? JSON.parse(savedSession) : null);
         setCars(Array.isArray(savedCars) ? savedCars : []);
+
+        if (!Array.isArray(savedCars)) {
+          setError("Saved car data is invalid.");
+        }
       } catch {
         setSession(null);
         setCars([]);
-        setError("Unable to read saved data. Please check your browser storage.");
+        setError(
+          "Unable to read saved data. Please check your browser storage."
+        );
+      } finally {
+        setLoaded(true);
       }
-
-      setLoaded(true);
     }, 0);
 
     return () => window.clearTimeout(timer);
@@ -67,9 +107,86 @@ export default function OwnerCarsPage() {
     setSuccess("");
   }
 
+  function handlePhotoUrlsChange(event) {
+    setPhotoUrls(event.target.value);
+    setError("");
+    setSuccess("");
+  }
+
+  function handlePhotoUpload(event) {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    const urlCount = getPhotoUrls(photoUrls).length;
+    const totalSelected =
+      existingImages.length + urlCount + uploadedImages.length;
+
+    if (totalSelected + files.length > MAX_PHOTOS) {
+      setError(`You can add up to ${MAX_PHOTOS} photos per car.`);
+      event.target.value = "";
+      return;
+    }
+
+    const invalidFile = files.find(
+      (file) =>
+        !file.type.startsWith("image/") ||
+        file.size > MAX_PHOTO_SIZE
+    );
+
+    if (invalidFile) {
+      setError("Choose image files no larger than 350 KB each.");
+      event.target.value = "";
+      return;
+    }
+
+    Promise.all(
+      files.map(
+        (file) =>
+          new Promise((resolve, reject) => {
+            const reader = new FileReader();
+
+            reader.onload = () => resolve(String(reader.result));
+            reader.onerror = () =>
+              reject(new Error("Could not read image."));
+
+            reader.readAsDataURL(file);
+          })
+      )
+    )
+      .then((images) => {
+        setUploadedImages((current) => [...current, ...images]);
+        setError("");
+        setSuccess("");
+      })
+      .catch(() => {
+        setError("Unable to read the selected photos. Please try again.");
+      });
+
+    event.target.value = "";
+  }
+
+  function removeUploadedImage(index) {
+    setUploadedImages((current) =>
+      current.filter((_, i) => i !== index)
+    );
+    setError("");
+    setSuccess("");
+  }
+
+  function removeExistingImage(index) {
+    setExistingImages((current) =>
+      current.filter((_, i) => i !== index)
+    );
+    setError("");
+    setSuccess("");
+  }
+
   function resetForm() {
     setForm(EMPTY_FORM);
     setEditingId(null);
+    setPhotoUrls("");
+    setUploadedImages([]);
+    setExistingImages([]);
     setError("");
   }
 
@@ -103,8 +220,30 @@ export default function OwnerCarsPage() {
       return;
     }
 
+    const urlImages = getPhotoUrls(photoUrls);
+
+    if (urlImages.some((url) => !isValidImageUrl(url))) {
+      setError("Every photo URL must be a valid HTTP or HTTPS link.");
+      return;
+    }
+
+    const images = [
+      ...new Set([
+        ...existingImages,
+        ...urlImages,
+        ...uploadedImages,
+      ]),
+    ];
+
+    if (images.length > MAX_PHOTOS) {
+      setError(`You can add up to ${MAX_PHOTOS} photos per car.`);
+      return;
+    }
+
     try {
-      const savedCars = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+      const savedCars = JSON.parse(
+        localStorage.getItem(STORAGE_KEY) || "[]"
+      );
 
       if (!Array.isArray(savedCars)) {
         setError("Saved car data is invalid. Please refresh and try again.");
@@ -116,7 +255,8 @@ export default function OwnerCarsPage() {
           (car) =>
             String(car.id) === String(editingId) &&
             (car.ownerId === session.id ||
-              car.ownerEmail?.toLowerCase() === session.email?.toLowerCase())
+              car.ownerEmail?.toLowerCase() ===
+              session.email?.toLowerCase())
         );
 
         if (!existingCar) {
@@ -133,7 +273,9 @@ export default function OwnerCarsPage() {
         seats,
         price,
         location,
-        image: form.image.trim(),
+        images,
+        // Keep the original field for compatibility with existing pages.
+        image: images[0] || "",
         description: form.description.trim(),
         ownerId: session.id,
         ownerEmail: session.email || "",
@@ -141,14 +283,14 @@ export default function OwnerCarsPage() {
       };
 
       let updatedCars;
+      const wasEditing = editingId !== null;
 
-      if (editingId !== null) {
+      if (wasEditing) {
         updatedCars = savedCars.map((car) =>
           String(car.id) === String(editingId)
             ? { ...car, ...carData }
             : car
         );
-        setSuccess("Your car listing has been updated.");
       } else {
         updatedCars = [
           ...savedCars,
@@ -158,23 +300,29 @@ export default function OwnerCarsPage() {
             createdAt: new Date().toISOString(),
           },
         ];
-        setSuccess("Your car listing has been added.");
       }
 
       persistCars(updatedCars);
       resetForm();
+
       setSuccess(
-        editingId !== null
+        wasEditing
           ? "Your car listing has been updated."
           : "Your car listing has been added."
       );
-    } catch {
-      setError("Could not save your listing. Please try again.");
+    } catch (saveError) {
+      console.error("Could not save car listing:", saveError);
+
+      setError(
+        "Could not save your listing. Your browser storage may be full. " +
+        "Try using smaller photos or fewer photos."
+      );
     }
   }
 
   function handleEdit(car) {
     setEditingId(car.id);
+
     setForm({
       name: car.name || "",
       year: String(car.year || new Date().getFullYear()),
@@ -183,11 +331,15 @@ export default function OwnerCarsPage() {
       seats: String(car.seats || 5),
       price: String(car.price || ""),
       location: car.location || "Addis Ababa",
-      image: car.image || "",
       description: car.description || "",
     });
+
+    setExistingImages(getCarImages(car));
+    setPhotoUrls("");
+    setUploadedImages([]);
     setError("");
     setSuccess("");
+
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -199,7 +351,10 @@ export default function OwnerCarsPage() {
     if (!confirmed) return;
 
     try {
-      const savedCars = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+      const savedCars = JSON.parse(
+        localStorage.getItem(STORAGE_KEY) || "[]"
+      );
+
       if (!Array.isArray(savedCars)) {
         setError("Saved car data is invalid.");
         return;
@@ -210,12 +365,17 @@ export default function OwnerCarsPage() {
           !(
             String(item.id) === String(car.id) &&
             (item.ownerId === session.id ||
-              item.ownerEmail?.toLowerCase() === session.email?.toLowerCase())
+              item.ownerEmail?.toLowerCase() ===
+              session.email?.toLowerCase())
           )
       );
 
       persistCars(updatedCars);
-      if (String(editingId) === String(car.id)) resetForm();
+
+      if (String(editingId) === String(car.id)) {
+        resetForm();
+      }
+
       setSuccess("Your car listing has been deleted.");
       setError("");
     } catch {
@@ -233,9 +393,11 @@ export default function OwnerCarsPage() {
         <h1 className="text-3xl font-bold text-slate-900">
           Owner access required
         </h1>
+
         <p className="mt-3 text-slate-600">
           Sign in with an owner demo account to manage car listings.
         </p>
+
         <Link
           href="/signin"
           className="mt-6 inline-block rounded-xl bg-emerald-700 px-6 py-3 font-semibold text-white"
@@ -245,6 +407,10 @@ export default function OwnerCarsPage() {
       </main>
     );
   }
+
+  const pendingUrlCount = getPhotoUrls(photoUrls).length;
+  const totalPhotoCount =
+    existingImages.length + pendingUrlCount + uploadedImages.length;
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-8">
@@ -260,9 +426,11 @@ export default function OwnerCarsPage() {
           <p className="text-sm font-semibold text-emerald-700">
             SHEGGAR WHEELS
           </p>
+
           <h1 className="mt-2 text-3xl font-bold text-slate-900">
             Manage my cars
           </h1>
+
           <p className="mt-2 text-slate-600">
             Add, update, and remove your rental listings.
           </p>
@@ -285,11 +453,18 @@ export default function OwnerCarsPage() {
             {editingId !== null ? "Edit car listing" : "Add a car listing"}
           </h2>
 
-          <form onSubmit={handleSubmit} className="mt-6 grid gap-5 sm:grid-cols-2">
+          <form
+            onSubmit={handleSubmit}
+            className="mt-6 grid gap-5 sm:grid-cols-2"
+          >
             <div>
-              <label htmlFor="name" className="mb-2 block text-sm font-medium text-slate-700">
+              <label
+                htmlFor="name"
+                className="mb-2 block text-sm font-medium text-slate-700"
+              >
                 Car name
               </label>
+
               <input
                 id="name"
                 name="name"
@@ -302,9 +477,13 @@ export default function OwnerCarsPage() {
             </div>
 
             <div>
-              <label htmlFor="year" className="mb-2 block text-sm font-medium text-slate-700">
+              <label
+                htmlFor="year"
+                className="mb-2 block text-sm font-medium text-slate-700"
+              >
                 Model year
               </label>
+
               <input
                 id="year"
                 name="year"
@@ -319,9 +498,13 @@ export default function OwnerCarsPage() {
             </div>
 
             <div>
-              <label htmlFor="type" className="mb-2 block text-sm font-medium text-slate-700">
+              <label
+                htmlFor="type"
+                className="mb-2 block text-sm font-medium text-slate-700"
+              >
                 Car type
               </label>
+
               <select
                 id="type"
                 name="type"
@@ -329,16 +512,24 @@ export default function OwnerCarsPage() {
                 onChange={handleChange}
                 className="w-full rounded-lg border border-slate-300 px-4 py-3"
               >
-                {["Sedan", "SUV", "Hatchback", "Luxury", "Pickup", "Van"].map((type) => (
-                  <option key={type}>{type}</option>
-                ))}
+                {["Sedan", "SUV", "Hatchback", "Luxury", "Pickup", "Van"].map(
+                  (type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  )
+                )}
               </select>
             </div>
 
             <div>
-              <label htmlFor="transmission" className="mb-2 block text-sm font-medium text-slate-700">
+              <label
+                htmlFor="transmission"
+                className="mb-2 block text-sm font-medium text-slate-700"
+              >
                 Transmission
               </label>
+
               <select
                 id="transmission"
                 name="transmission"
@@ -347,15 +538,21 @@ export default function OwnerCarsPage() {
                 className="w-full rounded-lg border border-slate-300 px-4 py-3"
               >
                 {["Automatic", "Manual"].map((transmission) => (
-                  <option key={transmission}>{transmission}</option>
+                  <option key={transmission} value={transmission}>
+                    {transmission}
+                  </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label htmlFor="seats" className="mb-2 block text-sm font-medium text-slate-700">
+              <label
+                htmlFor="seats"
+                className="mb-2 block text-sm font-medium text-slate-700"
+              >
                 Seats
               </label>
+
               <input
                 id="seats"
                 name="seats"
@@ -370,9 +567,13 @@ export default function OwnerCarsPage() {
             </div>
 
             <div>
-              <label htmlFor="price" className="mb-2 block text-sm font-medium text-slate-700">
+              <label
+                htmlFor="price"
+                className="mb-2 block text-sm font-medium text-slate-700"
+              >
                 Price per day (ETB)
               </label>
+
               <input
                 id="price"
                 name="price"
@@ -387,10 +588,14 @@ export default function OwnerCarsPage() {
               />
             </div>
 
-            <div>
-              <label htmlFor="location" className="mb-2 block text-sm font-medium text-slate-700">
+            <div className="sm:col-span-2">
+              <label
+                htmlFor="location"
+                className="mb-2 block text-sm font-medium text-slate-700"
+              >
                 Location
               </label>
+
               <input
                 id="location"
                 name="location"
@@ -401,25 +606,137 @@ export default function OwnerCarsPage() {
               />
             </div>
 
-            <div>
-              <label htmlFor="image" className="mb-2 block text-sm font-medium text-slate-700">
-                Image URL (optional)
+            <div className="space-y-3 sm:col-span-2">
+              <label
+                htmlFor="photoUrls"
+                className="block text-sm font-medium text-slate-700"
+              >
+                Car Photo URLs (optional)
               </label>
-              <input
-                id="image"
-                name="image"
-                type="url"
-                value={form.image}
-                onChange={handleChange}
-                placeholder="https://example.com/car.jpg"
-                className="w-full rounded-lg border border-slate-300 px-4 py-3"
+
+              <textarea
+                id="photoUrls"
+                value={photoUrls}
+                onChange={handlePhotoUrlsChange}
+                rows={3}
+                placeholder={
+                  "Enter one image URL per line:\nhttps://example.com/car1.jpg\nhttps://example.com/car2.jpg"
+                }
+                className="w-full rounded-xl border border-slate-300 px-4 py-3"
               />
+
+              <div>
+                <label
+                  htmlFor="photoUploads"
+                  className="block text-sm font-medium text-slate-700"
+                >
+                  Upload Photos From Your Computer
+                </label>
+
+                <input
+                  id="photoUploads"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handlePhotoUpload}
+                  className="mt-2 block w-full rounded-xl border border-slate-300 p-3"
+                />
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Maximum {MAX_PHOTOS} photos per car. Each uploaded photo
+                  must be 350 KB or smaller.
+                </p>
+
+                <p className="mt-1 text-xs font-medium text-slate-600">
+                  {totalPhotoCount} of {MAX_PHOTOS} photos selected
+                </p>
+              </div>
             </div>
 
+            {existingImages.length > 0 && (
+              <div className="sm:col-span-2">
+                <h3 className="mb-3 text-sm font-semibold text-slate-700">
+                  Current photos
+                </h3>
+
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+                  {existingImages.map((src, index) => (
+                    <div key={`${src}-${index}`} className="relative">
+
+                      <Image
+                        src={src}
+                        alt={`Current car photo ${index + 1}`}
+                        width={400}
+                        height={280}
+                        unoptimized
+                        className="h-28 w-full rounded-lg border border-slate-200 object-cover"
+                      />
+
+
+                      <button
+                        type="button"
+                        onClick={() => removeExistingImage(index)}
+                        className="mt-2 w-full rounded-lg border border-red-200 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {uploadedImages.length > 0 && (
+              <div className="sm:col-span-2">
+                <h3 className="mb-3 text-sm font-semibold text-slate-700">
+                  Uploaded photos
+                </h3>
+
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+                  {uploadedImages.map((src, index) => (
+                    <div key={`${src.slice(-30)}-${index}`} className="relative">
+
+                      <Image
+                        src={src}
+                        alt={`Uploaded car photo ${index + 1}`}
+                        width={400}
+                        height={280}
+                        unoptimized
+                        className="h-28 w-full rounded-lg border border-slate-200 object-cover"
+                      />
+
+
+                      <button
+                        type="button"
+                        onClick={() => removeUploadedImage(index)}
+                        className="mt-2 w-full rounded-lg border border-red-200 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {pendingUrlCount > 0 && (
+              <div className="sm:col-span-2">
+                <p className="text-sm text-slate-600">
+                  {pendingUrlCount} photo URL
+                  {pendingUrlCount === 1 ? "" : "s"} will be saved when you
+                  submit the form.
+                </p>
+              </div>
+            )}
+
             <div className="sm:col-span-2">
-              <label htmlFor="description" className="mb-2 block text-sm font-medium text-slate-700">
+              <label
+                htmlFor="description"
+                className="mb-2 block text-sm font-medium text-slate-700"
+              >
                 Description
               </label>
+
               <textarea
                 id="description"
                 name="description"
@@ -443,7 +760,10 @@ export default function OwnerCarsPage() {
               {editingId !== null && (
                 <button
                   type="button"
-                  onClick={resetForm}
+                  onClick={() => {
+                    resetForm();
+                    setSuccess("");
+                  }}
                   className="rounded-lg border border-slate-300 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   Cancel edit
@@ -456,6 +776,7 @@ export default function OwnerCarsPage() {
         <section className="mt-8">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-bold text-slate-900">My listings</h2>
+
             <span className="text-sm text-slate-500">
               {ownerCars.length} {ownerCars.length === 1 ? "car" : "cars"}
             </span>
@@ -464,63 +785,87 @@ export default function OwnerCarsPage() {
           {ownerCars.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
               <h3 className="font-semibold text-slate-900">No listings yet</h3>
+
               <p className="mt-2 text-sm text-slate-500">
                 Use the form above to publish your first demo car listing.
               </p>
             </div>
           ) : (
             <div className="grid gap-5 md:grid-cols-2">
-              {ownerCars.map((car) => (
-                <article
-                  key={car.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-                >
-                  {car.image && (
-                    <Image
-                      src={car.image}
-                      alt={car.name}
-                      width={400}
-                      height={240}
-                      className="h-48 w-full rounded-lg object-cover"
-                    />
-                  )}
-                  <h3 className="text-lg font-bold text-slate-900">{car.name}</h3>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {car.year} · {car.type} · {car.transmission} · {car.seats} seats
-                  </p>
-                  <p className="mt-2 text-sm text-slate-600">{car.location}</p>
-                  <p className="mt-3 font-semibold text-slate-900">
-                    ETB {Number(car.price).toLocaleString()} / day
-                  </p>
-                  <p className="mt-2 line-clamp-3 text-sm text-slate-600">
-                    {car.description}
-                  </p>
+              {ownerCars.map((car) => {
+                const carImages = getCarImages(car);
 
-                  <div className="mt-5 flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => handleEdit(car)}
-                      className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(car)}
-                      className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </article>
-              ))}
+                return (
+                  <article
+                    key={car.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                  >
+                    {carImages.length > 0 && (
+                      <div className="grid grid-cols-2 gap-2">
+                        {carImages.slice(0, 4).map((src, index) => (
+
+                          <Image
+                            key={`${src.slice(-30)}-${index}`}
+                            src={src}
+                            alt={`Uploaded car photo ${index + 1}`}
+                            width={400}
+                            height={280}
+                            unoptimized
+                            className="h-28 w-full rounded-lg border border-slate-200 object-cover"
+                          />
+                        ))}
+                      </div>
+                    )}
+
+                    <h3 className="mt-3 text-lg font-bold text-slate-900">
+                      {car.name}
+                    </h3>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      {car.year} · {car.type} · {car.transmission} ·{" "}
+                      {car.seats} seats
+                    </p>
+
+                    <p className="mt-2 text-sm text-slate-600">
+                      {car.location}
+                    </p>
+
+                    <p className="mt-3 font-semibold text-slate-900">
+                      ETB {Number(car.price).toLocaleString()} / day
+                    </p>
+
+                    <p className="mt-2 line-clamp-3 text-sm text-slate-600">
+                      {car.description}
+                    </p>
+
+                    <div className="mt-5 flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(car)}
+                        className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(car)}
+                        className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>
 
         <p className="mt-6 text-xs leading-5 text-slate-500">
-          Demo only: listings are saved in this browser&apos;s local storage. Client-side
-          ownership checks are not secure server-side authorization.
+          Demo only: listings and uploaded photos are saved in this browser&apos;s
+          local storage. Large uploads can exceed browser storage limits.
+          Client-side ownership checks are not secure server-side authorization.
         </p>
       </div>
     </main>

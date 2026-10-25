@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -8,6 +9,7 @@ export default function CarDetailPage({ params }) {
   const [car, setCar] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [notFoundCar, setNotFoundCar] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -54,11 +56,13 @@ export default function CarDetailPage({ params }) {
                 transmission:
                   foundCar.transmission || "Not specified",
                 description:
-                  foundCar.description || "Owner-provided car listing.",
+                  foundCar.description ||
+                  "Owner-provided car listing.",
               }
               : null
           );
 
+          setSelectedImageIndex(0);
           setNotFoundCar(!foundCar);
           setLoaded(true);
         }
@@ -91,9 +95,11 @@ export default function CarDetailPage({ params }) {
         <h1 className="text-3xl font-black text-slate-900">
           Car not found
         </h1>
+
         <p className="mt-3 text-slate-600">
           This car may have been removed or is no longer available.
         </p>
+
         <Link
           href="/cars"
           className="mt-6 inline-block rounded-xl bg-orange-500 px-5 py-3 font-bold text-white"
@@ -104,6 +110,17 @@ export default function CarDetailPage({ params }) {
     );
   }
 
+  // Support both new multi-photo cars and older single-photo cars.
+  const carImages =
+    Array.isArray(car.images) && car.images.length > 0
+      ? car.images
+      : car.image
+        ? [car.image]
+        : [];
+
+  const selectedImage =
+    carImages[selectedImageIndex] || carImages[0] || "";
+
   return (
     <main className="min-h-screen bg-[#f8f9fc] text-slate-900">
       <header className="border-b border-slate-200 bg-white">
@@ -111,6 +128,7 @@ export default function CarDetailPage({ params }) {
           <Link href="/" className="text-xl font-extrabold">
             🚗 Sheggar<span className="text-orange-500">Wheels</span>
           </Link>
+
           <Link
             href="/cars"
             className="text-sm font-bold text-slate-600 hover:text-orange-500"
@@ -122,25 +140,72 @@ export default function CarDetailPage({ params }) {
 
       <section className="mx-auto max-w-7xl px-5 py-8 lg:px-8">
         <div className="mb-6 text-sm text-slate-500">
-          <Link href="/" className="hover:text-orange-500">Home</Link>
+          <Link href="/" className="hover:text-orange-500">
+            Home
+          </Link>
           {" / "}
-          <Link href="/cars" className="hover:text-orange-500">Cars</Link>
+          <Link href="/cars" className="hover:text-orange-500">
+            Cars
+          </Link>
           {" / "}
-          <span className="font-semibold text-slate-800">{car.name}</span>
+          <span className="font-semibold text-slate-800">
+            {car.name}
+          </span>
         </div>
 
         <div className="grid gap-8 lg:grid-cols-[1.5fr_1fr]">
           <div>
-            <div
-              role="img"
-              aria-label={car.name}
-              className="min-h-[300px] rounded-3xl bg-slate-200 bg-cover bg-center sm:min-h-[460px]"
-              style={
-                car.image
-                  ? { backgroundImage: `url("${car.image}")` }
-                  : undefined
-              }
-            />
+            {/* Main car photo with previous/next arrows */}
+            <div className="relative">
+              <div
+                role="img"
+                aria-label={`${car.name} photo ${selectedImageIndex + 1}`}
+                className="min-h-[300px] rounded-3xl bg-slate-200 bg-cover bg-center sm:min-h-[460px]"
+                style={
+                  selectedImage
+                    ? { backgroundImage: `url("${selectedImage}")` }
+                    : undefined
+                }
+              />
+
+              {carImages.length > 1 && (
+                <>
+                  {/* Previous photo */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedImageIndex(
+                        (selectedImageIndex - 1 + carImages.length) %
+                        carImages.length
+                      )
+                    }
+                    aria-label="Previous photo"
+                    className="absolute left-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-3xl text-slate-900 shadow-lg transition hover:bg-orange-500 hover:text-white"
+                  >
+                    ‹
+                  </button>
+
+                  {/* Next photo */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedImageIndex(
+                        (selectedImageIndex + 1) % carImages.length
+                      )
+                    }
+                    aria-label="Next photo"
+                    className="absolute right-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-3xl text-slate-900 shadow-lg transition hover:bg-orange-500 hover:text-white"
+                  >
+                    ›
+                  </button>
+
+                  {/* Photo count */}
+                  <span className="absolute bottom-4 right-4 rounded-full bg-black/65 px-3 py-1 text-sm font-semibold text-white">
+                    {selectedImageIndex + 1} / {carImages.length}
+                  </span>
+                </>
+              )}
+            </div>
 
             <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -148,13 +213,16 @@ export default function CarDetailPage({ params }) {
                   <p className="text-sm font-bold uppercase tracking-wider text-orange-500">
                     {car.tag}
                   </p>
+
                   <h1 className="mt-2 text-3xl font-black sm:text-4xl">
                     {car.name}
                   </h1>
+
                   <p className="mt-2 text-slate-500">
                     {car.year} · {car.type}
                   </p>
                 </div>
+
                 <span className="rounded-xl bg-orange-50 px-4 py-2 font-extrabold text-orange-600">
                   ★ {car.rating || "New"}
                 </span>
@@ -171,14 +239,25 @@ export default function CarDetailPage({ params }) {
                   ["🚘", "Vehicle type", car.type],
                   ["📅", "Model year", String(car.year)],
                   ["📍", "Location", car.location],
-                  ["⭐", "Rating", car.rating ? `${car.rating} / 5` : "Not rated"],
+                  [
+                    "⭐",
+                    "Rating",
+                    car.rating ? `${car.rating} / 5` : "Not rated",
+                  ],
                 ].map(([icon, label, value]) => (
-                  <div key={label} className="rounded-xl bg-slate-50 p-4">
+                  <div
+                    key={label}
+                    className="rounded-xl bg-slate-50 p-4"
+                  >
                     <span className="text-xl">{icon}</span>
+
                     <p className="mt-3 text-xs font-semibold text-slate-500">
                       {label}
                     </p>
-                    <p className="mt-1 text-sm font-extrabold">{value}</p>
+
+                    <p className="mt-1 text-sm font-extrabold">
+                      {value}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -190,11 +269,15 @@ export default function CarDetailPage({ params }) {
               <p className="text-sm font-semibold text-slate-500">
                 Rental price
               </p>
+
               <div className="mt-2 flex items-baseline gap-2">
                 <span className="text-3xl font-black text-orange-600">
                   ETB {car.price.toLocaleString("en-US")}
                 </span>
-                <span className="text-sm text-slate-500">/ day</span>
+
+                <span className="text-sm text-slate-500">
+                  / day
+                </span>
               </div>
 
               <div className="my-6 border-t border-slate-100" />
@@ -204,13 +287,19 @@ export default function CarDetailPage({ params }) {
                   <span className="text-slate-500">Vehicle</span>
                   <span className="font-bold">{car.name}</span>
                 </div>
+
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-slate-500">Pickup area</span>
-                  <span className="text-right font-bold">{car.location}</span>
+                  <span className="text-right font-bold">
+                    {car.location}
+                  </span>
                 </div>
+
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-slate-500">Transmission</span>
-                  <span className="font-bold">{car.transmission}</span>
+                  <span className="font-bold">
+                    {car.transmission}
+                  </span>
                 </div>
               </div>
 
@@ -240,6 +329,6 @@ export default function CarDetailPage({ params }) {
       <footer className="border-t border-slate-200 bg-white px-5 py-7 text-center text-sm text-slate-500">
         Sheggar Wheels · Frontend capstone demo
       </footer>
-    </main>
+    </main >
   );
 }

@@ -237,7 +237,7 @@ export default function AdminCarsPage() {
                       <td className="p-4">
                         <div className="relative h-14 w-20 overflow-hidden rounded-lg border border-white/10">
                           <Image
-                            src={car.image || "/cars/car-placeholder.png"}
+                            src={car.images?.[0] || car.image || "/cars/car-placeholder.png"}
                             alt={car.name || "Car"}
                             fill
                             sizes="80px"
