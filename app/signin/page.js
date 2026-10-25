@@ -10,6 +10,7 @@ export default function SigninPage() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
 
+
   function handleSubmit(event) {
     event.preventDefault();
     setError("");
@@ -26,8 +27,13 @@ export default function SigninPage() {
         localStorage.getItem("sheggar-accounts") || "[]"
       );
 
+      if (!Array.isArray(accounts)) {
+        setError("Invalid account data. Please try again.");
+        return;
+      }
+
       const account = accounts.find(
-        (item) => item.email === normalizedEmail
+        (item) => item.email?.toLowerCase() === normalizedEmail
       );
 
       if (!account) {
@@ -36,11 +42,14 @@ export default function SigninPage() {
       }
 
       sessionStorage.setItem("sheggar-session", JSON.stringify(account));
-      router.push("/");
-    } catch {
+
+      router.push(account.role === "admin" ? "/admin" : "/");
+    } catch (error) {
+      console.error("Sign-in error:", error);
       setError("Unable to sign in. Please try again.");
     }
   }
+
 
   return (
     <main className="flex flex-1 items-center justify-center bg-slate-50 px-4 py-12">
