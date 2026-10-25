@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -6,6 +7,7 @@ import { useRouter } from "next/navigation";
 
 export default function OwnerEarningsPage() {
   const router = useRouter();
+
   const [session, setSession] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,6 +28,7 @@ export default function OwnerEarningsPage() {
         const savedCars = JSON.parse(
           localStorage.getItem("sheggar-cars") || "[]"
         );
+
         const ownerCars = Array.isArray(savedCars)
           ? savedCars.filter(
             (car) =>
@@ -42,14 +45,12 @@ export default function OwnerEarningsPage() {
           localStorage.getItem("sheggar-bookings") || "[]"
         );
 
+        // Only count bookings connected to this owner's cars.
         const ownerBookings = Array.isArray(savedBookings)
           ? savedBookings.filter(
             (booking) =>
-              ownerCarIds.includes(String(booking.carId)) ||
-              (booking.ownerId && booking.ownerId === account.id) ||
-              (booking.ownerEmail &&
-                booking.ownerEmail.toLowerCase() ===
-                account.email?.toLowerCase())
+              booking.carId != null &&
+              ownerCarIds.includes(String(booking.carId))
           )
           : [];
 
@@ -70,7 +71,7 @@ export default function OwnerEarningsPage() {
     );
 
     const pending = bookings.filter(
-      (booking) => booking.status === "Pending"
+      (booking) => (booking.status || "Pending") === "Pending"
     );
 
     const confirmed = bookings.filter(
@@ -81,15 +82,20 @@ export default function OwnerEarningsPage() {
       (booking) => booking.status === "Cancelled"
     );
 
-    const revenue = completed.reduce(
-      (sum, booking) => sum + Number(booking.totalPrice || 0),
-      0
-    );
+    const revenue = completed.reduce((sum, booking) => {
+      const amount = Number(booking.totalPrice);
+
+      return sum + (Number.isFinite(amount) && amount > 0 ? amount : 0);
+    }, 0);
 
     const monthlyMap = {};
 
     completed.forEach((booking) => {
-      const date = new Date(booking.createdAt || booking.pickupDate);
+      // Use the booking creation date, falling back to pickup date.
+      const dateValue = booking.createdAt || booking.pickupDate;
+      if (!dateValue) return;
+
+      const date = new Date(dateValue);
 
       if (Number.isNaN(date.getTime())) return;
 
@@ -97,14 +103,16 @@ export default function OwnerEarningsPage() {
         date.getMonth() + 1
       ).padStart(2, "0")}`;
 
-      monthlyMap[key] =
-        (monthlyMap[key] || 0) + Number(booking.totalPrice || 0);
+      const amount = Number(booking.totalPrice);
+      const safeAmount =
+        Number.isFinite(amount) && amount > 0 ? amount : 0;
+
+      monthlyMap[key] = (monthlyMap[key] || 0) + safeAmount;
     });
 
     const monthly = Object.entries(monthlyMap)
-      .sort(([a], [b]) => b.localeCompare(a))
-      .slice(0, 6)
-      .reverse();
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-6);
 
     return {
       completed,
@@ -116,7 +124,10 @@ export default function OwnerEarningsPage() {
     };
   }, [bookings]);
 
-  const money = (value) => `${Number(value || 0).toLocaleString()} ETB`;
+  const money = (value) =>
+    `${Number(value || 0).toLocaleString("en-ET", {
+      maximumFractionDigits: 2,
+    })} ETB`;
 
   if (loading) {
     return (
@@ -147,9 +158,11 @@ export default function OwnerEarningsPage() {
           <p className="text-sm font-semibold uppercase tracking-widest text-orange-400">
             Sheggar Wheels
           </p>
+
           <h1 className="mt-2 text-3xl font-bold sm:text-4xl">
-            Earnings & reports
+            Earnings &amp; reports
           </h1>
+
           <p className="mt-3 text-slate-400">
             Review completed rental revenue and booking activity for your cars.
           </p>
@@ -187,8 +200,9 @@ export default function OwnerEarningsPage() {
 
         <section className="mt-8 rounded-2xl border border-white/10 bg-slate-900 p-5 sm:p-7">
           <h2 className="text-xl font-bold">Monthly completed revenue</h2>
+
           <p className="mt-2 text-sm text-slate-400">
-            Based on each completed booking&apos;s creation date.
+            Based on the creation date of each completed booking.
           </p>
 
           {report.monthly.length === 0 ? (
@@ -203,7 +217,15 @@ export default function OwnerEarningsPage() {
                     <span className="text-slate-300">{month}</span>
                     <span className="font-semibold">{money(amount)}</span>
                   </div>
-                  <div className="h-3 overflow-hidden rounded-full bg-slate-800">
+
+                  <div
+                    className="h-3 overflow-hidden rounded-full bg-slate-800"
+                    role="progressbar"
+                    aria-label={`Revenue for ${month}`}
+                    aria-valuemin={0}
+                    aria-valuemax={maxMonthlyRevenue}
+                    aria-valuenow={amount}
+                  >
                     <div
                       className="h-full rounded-full bg-orange-500"
                       style={{
@@ -246,8 +268,9 @@ export default function OwnerEarningsPage() {
         </section>
 
         <p className="mt-6 text-xs leading-5 text-slate-500">
-          Demo report: revenue is calculated from bookings marked Completed.
-          It does not represent verified payments or accounting records.
+          Demo report: revenue includes bookings marked Completed. It does not
+          represent verified payments or accounting records. Data is stored
+          in this browser.
         </p>
       </div>
     </main>

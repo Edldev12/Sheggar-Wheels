@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,9 +7,11 @@ import Link from "next/link";
 const STATUSES = ["All", "Pending", "Confirmed", "Completed", "Cancelled"];
 
 function getStatus(booking) {
-  return STATUSES.includes(booking.status) && booking.status !== "All"
-    ? booking.status
-    : booking.status || "Pending";
+  const status = booking.status || "Pending";
+
+  return STATUSES.includes(status) && status !== "All"
+    ? status
+    : "Pending";
 }
 
 function getStatusStyle(status) {
@@ -27,7 +30,10 @@ function getStatusStyle(status) {
 function formatDate(dateString) {
   if (!dateString) return "—";
 
-  const date = new Date(`${dateString}T00:00:00`);
+  // Avoid adding a second time component to full ISO timestamps.
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(dateString)
+    ? new Date(`${dateString}T00:00:00`)
+    : new Date(dateString);
 
   if (Number.isNaN(date.getTime())) return "—";
 
@@ -53,14 +59,24 @@ export default function AdminBookingsPage() {
           ? JSON.parse(savedSession)
           : null;
 
+        setSession(currentSession);
+
+        if (!currentSession || currentSession.role !== "admin") {
+          return;
+        }
+
         const savedBookings = JSON.parse(
           localStorage.getItem("sheggar-bookings") || "[]"
         );
 
-        setSession(currentSession);
-        setBookings(Array.isArray(savedBookings) ? savedBookings : []);
+        if (!Array.isArray(savedBookings)) {
+          throw new Error("Invalid booking data");
+        }
+
+        setBookings(savedBookings);
       } catch {
         setError("Unable to load booking data from this browser.");
+        setBookings([]);
       } finally {
         setLoaded(true);
       }
@@ -71,12 +87,46 @@ export default function AdminBookingsPage() {
 
   function updateBookingStatus(bookingId, newStatus) {
     try {
-      const savedBookings = JSON.parse(
-        localStorage.getItem("sheggar-bookings") || "[]"
-      );
+      const savedSession = sessionStorage.getItem("sheggar-session");
+      const currentSession = savedSession ? JSON.parse(savedSession) : null;
+
+      if (!currentSession || currentSession.role !== "admin") {
+        setError("Admin access is required to update bookings.");
+        return;
+      }
+
+      if (!["Confirmed", "Completed", "Cancelled"].includes(newStatus)) {
+        setError("Invalid booking status.");
+        return;
+      }
+
+      const rawBookings = localStorage.getItem("sheggar-bookings") || "[]";
+      const savedBookings = JSON.parse(rawBookings);
 
       if (!Array.isArray(savedBookings)) {
         throw new Error("Invalid booking data");
+      }
+
+      const target = savedBookings.find(
+        (booking) => booking.id === bookingId
+      );
+
+      if (!target) {
+        setError("Booking not found. Refresh and try again.");
+        return;
+      }
+
+      const currentStatus = target.status || "Pending";
+
+      const validTransition =
+        (currentStatus === "Pending" &&
+          ["Confirmed", "Cancelled"].includes(newStatus)) ||
+        (currentStatus === "Confirmed" &&
+          ["Completed", "Cancelled"].includes(newStatus));
+
+      if (!validTransition) {
+        setError(`Cannot change ${currentStatus} to ${newStatus}.`);
+        return;
       }
 
       const updatedBookings = savedBookings.map((booking) =>
@@ -109,9 +159,11 @@ export default function AdminBookingsPage() {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-16 text-center text-white">
         <h1 className="text-3xl font-bold">Admin access required</h1>
+
         <p className="mt-3 text-slate-400">
           Sign in with your demo admin account to manage bookings.
         </p>
+
         <Link
           href="/signin"
           className="mt-6 inline-block rounded-xl bg-orange-500 px-6 py-3 font-semibold hover:bg-orange-400"
@@ -145,9 +197,11 @@ export default function AdminBookingsPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-orange-400">
               Sheggar Wheels
             </p>
+
             <h1 className="mt-2 text-3xl font-bold sm:text-4xl">
               Booking Management
             </h1>
+
             <p className="mt-2 text-slate-400">
               Review and manage customer booking requests.
             </p>
@@ -198,6 +252,7 @@ export default function AdminBookingsPage() {
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <div>
               <h2 className="text-xl font-bold">All bookings</h2>
+
               <p className="mt-1 text-sm text-slate-400">
                 {filteredBookings.length}{" "}
                 {filteredBookings.length === 1 ? "booking" : "bookings"} shown
@@ -206,6 +261,7 @@ export default function AdminBookingsPage() {
 
             <label className="flex items-center gap-3 text-sm text-slate-300">
               Filter
+
               <select
                 value={filter}
                 onChange={(event) => setFilter(event.target.value)}
@@ -232,6 +288,7 @@ export default function AdminBookingsPage() {
           {filteredBookings.length === 0 ? (
             <div className="mt-6 rounded-xl border border-dashed border-white/15 px-4 py-12 text-center">
               <h3 className="text-lg font-semibold">No bookings found</h3>
+
               <p className="mt-2 text-sm text-slate-400">
                 {filter === "All"
                   ? "New booking requests will appear here."
@@ -242,6 +299,11 @@ export default function AdminBookingsPage() {
             <div className="mt-6 space-y-4">
               {filteredBookings.map((booking) => {
                 const status = getStatus(booking);
+                const totalPrice = Number(booking.totalPrice);
+                const safeTotalPrice =
+                  Number.isFinite(totalPrice) && totalPrice > 0
+                    ? totalPrice
+                    : 0;
 
                 return (
                   <article
@@ -266,6 +328,7 @@ export default function AdminBookingsPage() {
                             <h3 className="text-lg font-bold">
                               {booking.carName || "Car booking"}
                             </h3>
+
                             <p className="mt-1 break-all text-xs text-slate-500">
                               Reference: {booking.id || "Unavailable"}
                             </p>
@@ -307,11 +370,9 @@ export default function AdminBookingsPage() {
                             <p className="text-xs text-slate-500">
                               Total rental cost
                             </p>
+
                             <p className="mt-1 font-bold text-orange-400">
-                              {Number(booking.totalPrice || 0).toLocaleString(
-                                "en-US"
-                              )}{" "}
-                              ETB
+                              {safeTotalPrice.toLocaleString("en-ET")} ETB
                             </p>
                           </div>
                         </div>
@@ -341,23 +402,27 @@ export default function AdminBookingsPage() {
                             </button>
                           )}
 
-                          {(status === "Pending" || status === "Confirmed") && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (
-                                  window.confirm(
-                                    "Are you sure you want to cancel this booking?"
-                                  )
-                                ) {
-                                  updateBookingStatus(booking.id, "Cancelled");
-                                }
-                              }}
-                              className="rounded-lg border border-red-500/30 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/10"
-                            >
-                              Cancel booking
-                            </button>
-                          )}
+                          {(status === "Pending" ||
+                            status === "Confirmed") && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (
+                                    window.confirm(
+                                      "Are you sure you want to cancel this booking?"
+                                    )
+                                  ) {
+                                    updateBookingStatus(
+                                      booking.id,
+                                      "Cancelled"
+                                    );
+                                  }
+                                }}
+                                className="rounded-lg border border-red-500/30 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/10"
+                              >
+                                Cancel booking
+                              </button>
+                            )}
                         </div>
                       </div>
                     </div>
@@ -369,9 +434,9 @@ export default function AdminBookingsPage() {
         </section>
 
         <p className="mt-6 text-center text-xs leading-5 text-slate-500">
-          Demo mode: booking data is stored in this browser only. Status changes
-          are not synchronized to other devices, and no real payments are
-          processed. Admin access checks here are client-side demonstrations,
+          Demo mode: booking data is stored in this browser only. Status
+          changes are not synchronized to other devices, and no real payments
+          are processed. Admin access checks here are client-side demonstrations,
           not server-side security.
         </p>
       </div>
