@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import CarLocationPicker from "@/components/CarLocationPicker";
 
 const STORAGE_KEY = "sheggar-cars";
 const MAX_PHOTOS = 5;
@@ -17,9 +18,9 @@ const EMPTY_FORM = {
   seats: "5",
   price: "",
   location: "Addis Ababa",
+  coordinates: null,
   description: "",
 };
-
 function getCarImages(car) {
   const images = Array.isArray(car.images)
     ? car.images.filter((image) => typeof image === "string" && image.trim())
@@ -201,8 +202,15 @@ export default function OwnerCarsPage() {
     const year = Number(form.year);
     const seats = Number(form.seats);
 
-    if (!name || !location || !form.description.trim()) {
-      setError("Please complete the name, location, and description.");
+    if (
+      !name ||
+      !location ||
+      !form.description.trim() ||
+      !form.coordinates
+    ) {
+      setError(
+        "Please complete the car name, address, description, and map location."
+      );
       return;
     }
 
@@ -273,6 +281,7 @@ export default function OwnerCarsPage() {
         seats,
         price,
         location,
+        coordinates: form.coordinates,
         images,
         // Keep the original field for compatibility with existing pages.
         image: images[0] || "",
@@ -331,6 +340,7 @@ export default function OwnerCarsPage() {
       seats: String(car.seats || 5),
       price: String(car.price || ""),
       location: car.location || "Addis Ababa",
+      coordinates: car.coordinates || null,
       description: car.description || "",
     });
 
@@ -588,23 +598,6 @@ export default function OwnerCarsPage() {
               />
             </div>
 
-            <div className="sm:col-span-2">
-              <label
-                htmlFor="location"
-                className="mb-2 block text-sm font-medium text-slate-700"
-              >
-                Location
-              </label>
-
-              <input
-                id="location"
-                name="location"
-                value={form.location}
-                onChange={handleChange}
-                required
-                className="w-full rounded-lg border border-slate-300 px-4 py-3"
-              />
-            </div>
 
             <div className="space-y-3 sm:col-span-2">
               <label
@@ -748,7 +741,16 @@ export default function OwnerCarsPage() {
                 className="w-full rounded-lg border border-slate-300 px-4 py-3"
               />
             </div>
-
+            <CarLocationPicker
+              address={form.location}
+              onAddressChange={(location) =>
+                setForm((current) => ({ ...current, location }))
+              }
+              coordinates={form.coordinates}
+              onCoordinatesChange={(coordinates) =>
+                setForm((current) => ({ ...current, coordinates }))
+              }
+            />
             <div className="flex flex-wrap gap-3 sm:col-span-2">
               <button
                 type="submit"
