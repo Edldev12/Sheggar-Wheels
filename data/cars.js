@@ -1,3 +1,47 @@
+
+const carPhotos = {
+  toyotaCorolla: [
+    "https://images.unsplash.com/photo-1623869675781-80aa31012a5a?auto=format&fit=crop&w=1000&q=85",
+    "https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?auto=format&fit=crop&w=1000&q=85",
+    "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=1000&q=85",
+  ],
+  hyundaiTucson: [
+    "https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?auto=format&fit=crop&w=1000&q=85",
+    "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1000&q=85",
+    "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1000&q=85",
+  ],
+  landCruiser: [
+    "https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?auto=format&fit=crop&w=1000&q=85",
+    "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1000&q=85",
+    "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1000&q=85",
+  ],
+  hondaCivic: [
+    "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=1000&q=85",
+    "https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?auto=format&fit=crop&w=1000&q=85",
+    "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1000&q=85",
+  ],
+  toyotaRav4: [
+    "https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?auto=format&fit=crop&w=1000&q=85",
+    "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1000&q=85",
+    "https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?auto=format&fit=crop&w=1000&q=85",
+  ],
+  mercedes: [
+    "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?auto=format&fit=crop&w=1000&q=85",
+    "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=1000&q=85",
+    "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1000&q=85",
+  ],
+  hyundaiAccent: [
+    "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=1000&q=85",
+    "https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?auto=format&fit=crop&w=1000&q=85",
+    "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?auto=format&fit=crop&w=1000&q=85",
+  ],
+  toyotaHilux: [
+    "https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?auto=format&fit=crop&w=1000&q=85",
+    "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1000&q=85",
+    "https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?auto=format&fit=crop&w=1000&q=85",
+  ],
+};
+
 export const cars = [
   {
     id: "1",
@@ -9,8 +53,8 @@ export const cars = [
     price: 2500,
     rating: 4.9,
     location: "Bole, Addis Ababa",
-    image:
-      "https://images.unsplash.com/photo-1623869675781-80aa31012a5a?auto=format&fit=crop&w=1000&q=85",
+    image: carPhotos.toyotaCorolla[0],
+    images: carPhotos.toyotaCorolla,
     tag: "Popular",
     description: "A comfortable and economical car for everyday city travel.",
   },
@@ -24,8 +68,8 @@ export const cars = [
     price: 4200,
     rating: 4.8,
     location: "Kazanchis, Addis Ababa",
-    image:
-      "https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?auto=format&fit=crop&w=1000&q=85",
+    image: carPhotos.hyundaiTucson[0],
+    images: carPhotos.hyundaiTucson,
     tag: "Great for trips",
     description: "A spacious SUV for family outings and longer journeys.",
   },
@@ -39,8 +83,8 @@ export const cars = [
     price: 7500,
     rating: 5.0,
     location: "Old Airport, Addis Ababa",
-    image:
-      "https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?auto=format&fit=crop&w=1000&q=85",
+    image: carPhotos.landCruiser[0],
+    images: carPhotos.landCruiser,
     tag: "Premium",
     description: "A premium SUV with space for passengers and luggage.",
   },
@@ -54,8 +98,8 @@ export const cars = [
     price: 3000,
     rating: 4.7,
     location: "Megenagna, Addis Ababa",
-    image:
-      "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=1000&q=85",
+    image: carPhotos.hondaCivic[0],
+    images: carPhotos.hondaCivic,
     tag: "City favorite",
     description: "A stylish sedan suited to city trips and daily errands.",
   },
@@ -69,8 +113,8 @@ export const cars = [
     price: 4500,
     rating: 4.9,
     location: "CMC, Addis Ababa",
-    image:
-      "https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?auto=format&fit=crop&w=1000&q=85",
+    image: carPhotos.toyotaRav4[0],
+    images: carPhotos.toyotaRav4,
     tag: "Adventure ready",
     description: "A versatile SUV for exploring the city and nearby destinations.",
   },
@@ -84,8 +128,8 @@ export const cars = [
     price: 6000,
     rating: 4.9,
     location: "Bole, Addis Ababa",
-    image:
-      "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?auto=format&fit=crop&w=1000&q=85",
+    image: carPhotos.mercedes[0],
+    images: carPhotos.mercedes,
     tag: "Luxury",
     description: "A premium sedan for comfortable and elegant journeys.",
   },
@@ -99,8 +143,8 @@ export const cars = [
     price: 2000,
     rating: 4.6,
     location: "Piassa, Addis Ababa",
-    image:
-      "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=1000&q=85",
+    image: carPhotos.hyundaiAccent[0],
+    images: carPhotos.hyundaiAccent,
     tag: "Budget friendly",
     description: "An affordable option for getting around Addis Ababa.",
   },
@@ -114,8 +158,8 @@ export const cars = [
     price: 5000,
     rating: 4.8,
     location: "Sar Bet, Addis Ababa",
-    image:
-      "https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?auto=format&fit=crop&w=1000&q=85",
+    image: carPhotos.toyotaHilux[0],
+    images: carPhotos.toyotaHilux,
     tag: "Utility",
     description: "A practical pickup for trips that need extra carrying capacity.",
   },
