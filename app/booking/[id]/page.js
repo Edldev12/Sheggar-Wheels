@@ -1,3 +1,4 @@
+
 "use client";
 
 import BookingMapLoader from "@/components/BookingMapLoader";
@@ -11,10 +12,12 @@ export default function BookingPage({ params }) {
   const { id } = use(params);
   const router = useRouter();
 
-  const car = cars.find((item) => String(item.id) === String(id));
-
   const [session, setSession] = useState(null);
   const [sessionLoaded, setSessionLoaded] = useState(false);
+
+  const [ownerCars, setOwnerCars] = useState([]);
+  const [ownerCarsLoaded, setOwnerCarsLoaded] = useState(false);
+
   const [locationSearchLoading, setLocationSearchLoading] = useState(false);
   const [pickupDate, setPickupDate] = useState("");
   const [returnDate, setReturnDate] = useState("");
@@ -23,6 +26,61 @@ export default function BookingPage({ params }) {
   const [pickupCoordinates, setPickupCoordinates] = useState(null);
   const [returnLocation, setReturnLocation] = useState("");
   const [error, setError] = useState("");
+
+  // Load the current session after the component mounts.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const savedSession = sessionStorage.getItem("sheggar-session");
+        setSession(savedSession ? JSON.parse(savedSession) : null);
+      } catch {
+        setSession(null);
+      }
+
+      setSessionLoaded(true);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  // Load owner-created cars from localStorage after mounting.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const savedCars = JSON.parse(
+          localStorage.getItem("sheggar-cars") || "[]"
+        );
+
+        setOwnerCars(Array.isArray(savedCars) ? savedCars : []);
+      } catch {
+        setOwnerCars([]);
+      }
+
+      setOwnerCarsLoaded(true);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  // Prefer an owner-created car, then fall back to the sample cars.
+  const car = useMemo(() => {
+    if (!ownerCarsLoaded) return null;
+
+    const ownerCar = ownerCars.find(
+      (item) => String(item.id) === String(id)
+    );
+
+    if (ownerCar) {
+      return {
+        ...ownerCar,
+        type: ownerCar.type || ownerCar.category || "",
+        category: ownerCar.category || ownerCar.type || "",
+        image: ownerCar.image || ownerCar.images?.[0] || "",
+      };
+    }
+
+    return cars.find((item) => String(item.id) === String(id)) || null;
+  }, [id, ownerCars, ownerCarsLoaded]);
 
   const todayString = useMemo(() => {
     const today = new Date();
@@ -47,21 +105,6 @@ export default function BookingPage({ params }) {
 
   const totalPrice = rentalDays * Number(car?.price || 0);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      try {
-        const savedSession = sessionStorage.getItem("sheggar-session");
-
-        setSession(savedSession ? JSON.parse(savedSession) : null);
-      } catch {
-        setSession(null);
-      }
-
-      setSessionLoaded(true);
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, []);
   async function findPickupLocation() {
     const query = pickupLocation.trim();
 
@@ -96,11 +139,14 @@ export default function BookingPage({ params }) {
       setPickupLocation(result.display_name);
       setPickupCoordinates({ latitude, longitude });
     } catch {
-      setError("Could not find the location. Check your internet and try again.");
+      setError(
+        "Could not find the location. Check your internet and try again."
+      );
     } finally {
       setLocationSearchLoading(false);
     }
   }
+
   function handleBooking(event) {
     event.preventDefault();
     setError("");
@@ -115,9 +161,12 @@ export default function BookingPage({ params }) {
     }
 
     if (!currentSession) {
-      router.push(
-        `/signin?next=${encodeURIComponent(`/booking/${id}`)}`
-      );
+      router.push(`/signin?next=${encodeURIComponent(`/booking/${id}`)}`);
+      return;
+    }
+
+    if (!car) {
+      setError("This car is no longer available.");
       return;
     }
 
@@ -151,17 +200,24 @@ export default function BookingPage({ params }) {
       return;
     }
 
+    const dailyPrice = Number(car.price);
+
+    if (!Number.isFinite(dailyPrice) || dailyPrice <= 0) {
+      setError("This car has an invalid rental price.");
+      return;
+    }
+
     const booking = {
       id: `booking-${Date.now()}`,
       carId: String(car.id),
       carName: car.name,
-      carImage: car.image,
-      dailyPrice: Number(car.price),
-      pricePerDay: Number(car.price),
+      carImage: car.image || car.images?.[0] || "",
+      dailyPrice,
+      pricePerDay: dailyPrice,
       pickupDate,
       returnDate,
       rentalDays,
-      totalPrice,
+      totalPrice: rentalDays * dailyPrice,
       phone: phone.trim(),
       pickupLocation: pickupLocation.trim(),
       pickupCoordinates,
@@ -169,20 +225,16 @@ export default function BookingPage({ params }) {
       status: "Pending",
       createdAt: new Date().toISOString(),
       customer: currentSession,
-
-      // Owner information for the owner dashboard
       ownerId: car.ownerId || null,
       ownerEmail: car.ownerEmail || null,
     };
 
     try {
-      const existingBookings = JSON.parse(
+      const savedBookings = JSON.parse(
         localStorage.getItem("sheggar-bookings") || "[]"
       );
 
-      const bookings = Array.isArray(existingBookings)
-        ? existingBookings
-        : [];
+      const bookings = Array.isArray(savedBookings) ? savedBookings : [];
 
       bookings.push(booking);
 
@@ -194,6 +246,14 @@ export default function BookingPage({ params }) {
     } catch {
       setError("Unable to save your booking. Please try again.");
     }
+  }
+
+  if (!ownerCarsLoaded) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+        <p className="text-slate-400">Loading car details...</p>
+      </main>
+    );
   }
 
   if (!car) {
@@ -335,7 +395,6 @@ export default function BookingPage({ params }) {
                   >
                     Pickup address
                   </label>
-
                   <input
                     id="pickupLocation"
                     type="text"
@@ -356,7 +415,9 @@ export default function BookingPage({ params }) {
                     disabled={locationSearchLoading}
                     className="mt-3 rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-60"
                   >
-                    {locationSearchLoading ? "Finding location..." : "Find location"}
+                    {locationSearchLoading
+                      ? "Finding location..."
+                      : "Find location"}
                   </button>
                 </div>
 
@@ -367,7 +428,6 @@ export default function BookingPage({ params }) {
                   >
                     Return address
                   </label>
-
                   <input
                     id="returnLocation"
                     type="text"
@@ -383,7 +443,10 @@ export default function BookingPage({ params }) {
                   <BookingMapLoader
                     selectedPosition={
                       pickupCoordinates
-                        ? [pickupCoordinates.latitude, pickupCoordinates.longitude]
+                        ? [
+                          pickupCoordinates.latitude,
+                          pickupCoordinates.longitude,
+                        ]
                         : undefined
                     }
                     onLocationSelect={({ latitude, longitude }) => {
@@ -394,13 +457,13 @@ export default function BookingPage({ params }) {
 
                   {pickupCoordinates && (
                     <p className="mt-3 text-sm text-slate-400">
-                      Selected coordinates: {pickupCoordinates.latitude.toFixed(6)},{" "}
+                      Selected coordinates:{" "}
+                      {pickupCoordinates.latitude.toFixed(6)},{" "}
                       {pickupCoordinates.longitude.toFixed(6)}
                     </p>
                   )}
                 </div>
               </div>
-
             </section>
 
             {error && (
@@ -426,14 +489,20 @@ export default function BookingPage({ params }) {
 
           <aside className="overflow-hidden rounded-3xl border border-white/10 bg-slate-900/70">
             <div className="relative h-56">
-              <Image
-                src={car.image}
-                alt={car.name}
-                fill
-                sizes="(max-width: 1024px) 100vw, 380px"
-                className="object-cover"
-                unoptimized
-              />
+              {car.image ? (
+                <Image
+                  src={car.image}
+                  alt={car.name}
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 380px"
+                  className="object-cover"
+                  unoptimized
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center bg-slate-800 text-slate-400">
+                  No car image available
+                </div>
+              )}
             </div>
 
             <div className="p-6">
@@ -444,9 +513,9 @@ export default function BookingPage({ params }) {
               <h2 className="mt-2 text-2xl font-bold">{car.name}</h2>
 
               <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-300">
-                {car.category && (
+                {(car.category || car.type) && (
                   <span className="rounded-full bg-white/5 px-3 py-2">
-                    {car.category}
+                    {car.category || car.type}
                   </span>
                 )}
                 {car.transmission && (
@@ -464,9 +533,7 @@ export default function BookingPage({ params }) {
               <div className="mt-6 border-t border-white/10 pt-5">
                 <div className="flex items-center justify-between text-sm text-slate-400">
                   <span>Price per day</span>
-                  <span>
-                    ETB {Number(car.price).toLocaleString()}
-                  </span>
+                  <span>ETB {Number(car.price).toLocaleString()}</span>
                 </div>
 
                 <div className="mt-3 flex items-center justify-between text-sm text-slate-400">
@@ -493,6 +560,6 @@ export default function BookingPage({ params }) {
           </aside>
         </div>
       </div>
-    </main >
+    </main>
   );
 }
