@@ -17,6 +17,11 @@ export default function SignupPage() {
 
   function handleChange(event) {
     const { name, value } = event.target;
+
+    if (name === "role" && !["renter", "owner"].includes(value)) {
+      return;
+    }
+
     setForm((current) => ({ ...current, [name]: value }));
   }
 
@@ -26,35 +31,58 @@ export default function SignupPage() {
 
     const name = form.name.trim();
     const email = form.email.trim().toLowerCase();
+    const role = form.role;
 
     if (!name || !email) {
       setError("Please complete all required fields.");
       return;
     }
 
-    const accounts = JSON.parse(
-      localStorage.getItem("sheggar-accounts") || "[]"
-    );
-
-    if (accounts.some((account) => account.email === email)) {
-      setError("An account with this email already exists. Please sign in.");
+    if (!["renter", "owner"].includes(role)) {
+      setError("Please select a valid account type.");
       return;
     }
 
-    const account = {
-      id: crypto.randomUUID(),
-      name,
-      email,
-      role: form.role,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const savedAccounts = JSON.parse(
+        localStorage.getItem("sheggar-accounts") || "[]"
+      );
 
-    accounts.push(account);
-    localStorage.setItem("sheggar-accounts", JSON.stringify(accounts));
+      if (!Array.isArray(savedAccounts)) {
+        setError("Account data is invalid. Please check your saved data.");
+        return;
+      }
 
-    sessionStorage.setItem("sheggar-session", JSON.stringify(account));
+      const accounts = savedAccounts;
 
-    router.push("/");
+      if (
+        accounts.some(
+          (account) =>
+            typeof account.email === "string" &&
+            account.email.trim().toLowerCase() === email
+        )
+      ) {
+        setError("An account with this email already exists. Please sign in.");
+        return;
+      }
+
+      const account = {
+        id: crypto.randomUUID(),
+        name,
+        email,
+        role,
+        createdAt: new Date().toISOString(),
+      };
+
+      accounts.push(account);
+
+      localStorage.setItem("sheggar-accounts", JSON.stringify(accounts));
+      sessionStorage.setItem("sheggar-session", JSON.stringify(account));
+
+      router.push(role === "owner" ? "/owener/dashboard" : "/");
+    } catch {
+      setError("Unable to create your account. Please try again.");
+    }
   }
 
   return (
@@ -70,6 +98,7 @@ export default function SignupPage() {
         <h1 className="mt-6 text-3xl font-bold tracking-tight text-slate-900">
           Create your account
         </h1>
+
         <p className="mt-2 text-sm text-slate-600">
           Join Sheggar Wheels to rent or list a car in Addis Ababa.
         </p>
@@ -161,8 +190,8 @@ export default function SignupPage() {
         </p>
 
         <p className="mt-5 rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">
-          Demo account only: this capstone stores profile information in your
-          browser. It does not provide real authentication or account security.
+          Demo account only: profile information is stored in this browser.
+          This does not provide real authentication or account security.
         </p>
       </section>
     </main>
