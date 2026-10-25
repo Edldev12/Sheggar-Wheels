@@ -49,12 +49,8 @@ export default function OwnerBookingsPage() {
         const ownerBookings = Array.isArray(savedBookings)
           ? savedBookings.filter(
             (booking) =>
-              ownerCarIds.includes(String(booking.carId)) ||
-              (booking.ownerId &&
-                booking.ownerId === currentSession.id) ||
-              (booking.ownerEmail &&
-                booking.ownerEmail.toLowerCase() ===
-                currentSession.email?.toLowerCase())
+              booking.carId != null &&
+              ownerCarIds.includes(String(booking.carId))
           )
           : [];
 
@@ -76,21 +72,74 @@ export default function OwnerBookingsPage() {
 
   function updateStatus(bookingId, newStatus) {
     try {
+      // Recheck the current session.
+      const savedSession = sessionStorage.getItem("sheggar-session");
+      const currentSession = savedSession
+        ? JSON.parse(savedSession)
+        : null;
+
+      if (!currentSession || currentSession.role !== "owner") {
+        setMessage("Owner access required. Please sign in again.");
+        return;
+      }
+
+      // Read the latest saved cars and bookings.
+      const savedCars = JSON.parse(
+        localStorage.getItem("sheggar-cars") || "[]"
+      );
       const allBookings = JSON.parse(
         localStorage.getItem("sheggar-bookings") || "[]"
       );
 
-      if (!Array.isArray(allBookings)) {
-        setMessage("Booking data is invalid.");
+      if (!Array.isArray(savedCars) || !Array.isArray(allBookings)) {
+        setMessage("Saved car or booking data is invalid.");
         return;
       }
 
-      const target = bookings.find(
+      const ownerEmail = currentSession.email?.toLowerCase();
+
+      // Identify cars belonging to this owner.
+      const ownerCarIds = savedCars
+        .filter(
+          (car) =>
+            (currentSession.id != null &&
+              car.ownerId === currentSession.id) ||
+            (ownerEmail &&
+              car.ownerEmail?.toLowerCase() === ownerEmail)
+        )
+        .map((car) => String(car.id));
+
+      // Find the requested booking in the latest saved data.
+      const target = allBookings.find(
         (booking) => booking.id === bookingId
       );
 
       if (!target) {
         setMessage("Booking not found.");
+        return;
+      }
+
+      // Verify ownership through the booking's car.
+      if (
+        target.carId == null ||
+        !ownerCarIds.includes(String(target.carId))
+      ) {
+        setMessage("You are not authorized to update this booking.");
+        return;
+      }
+
+      // Allow only the expected status transitions.
+      const allowedTransitions = {
+        Pending: ["Confirmed", "Cancelled"],
+        Confirmed: ["Completed"],
+      };
+
+      if (
+        !allowedTransitions[target.status || "Pending"]?.includes(
+          newStatus
+        )
+      ) {
+        setMessage("This status change is not allowed.");
         return;
       }
 
@@ -115,10 +164,9 @@ export default function OwnerBookingsPage() {
 
       setMessage(`Booking status updated to ${newStatus}.`);
     } catch {
-      setMessage("Unable to update booking status.");
+      setMessage("Unable to update booking status. Check your saved data.");
     }
   }
-
   const filteredBookings =
     filter === "All"
       ? bookings
