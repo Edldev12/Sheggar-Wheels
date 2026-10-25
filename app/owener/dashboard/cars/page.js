@@ -52,7 +52,7 @@ export default function OwnerCarsPage() {
   const [cars, setCars] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
-
+  const [showForm, setShowForm] = useState(false);
   const [photoUrls, setPhotoUrls] = useState("");
   const [uploadedImages, setUploadedImages] = useState([]);
   const [existingImages, setExistingImages] = useState([]);
@@ -189,6 +189,7 @@ export default function OwnerCarsPage() {
     setUploadedImages([]);
     setExistingImages([]);
     setError("");
+    setShowForm(false);
   }
 
   function handleSubmit(event) {
@@ -331,7 +332,7 @@ export default function OwnerCarsPage() {
 
   function handleEdit(car) {
     setEditingId(car.id);
-
+    setShowForm(true);
     setForm({
       name: car.name || "",
       year: String(car.year || new Date().getFullYear()),
@@ -426,7 +427,7 @@ export default function OwnerCarsPage() {
     <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-8">
       <div className="mx-auto max-w-6xl">
         <Link
-          href="/dashboard"
+          href="/owener/dashboard"
           className="text-sm font-semibold text-emerald-700 hover:underline"
         >
           ← Back to dashboard
@@ -445,7 +446,23 @@ export default function OwnerCarsPage() {
             Add, update, and remove your rental listings.
           </p>
         </header>
-
+        <div className="mt-6 flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              if (showForm) {
+                resetForm();
+              } else {
+                setError("");
+                setSuccess("");
+                setShowForm(true);
+              }
+            }}
+            className="rounded-xl bg-emerald-700 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-800"
+          >
+            {showForm ? "Close Form" : "+ Add New Car"}
+          </button>
+        </div>
         {(error || success) && (
           <p
             role={error ? "alert" : "status"}
@@ -458,322 +475,321 @@ export default function OwnerCarsPage() {
           </p>
         )}
 
-        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900">
-            {editingId !== null ? "Edit car listing" : "Add a car listing"}
-          </h2>
+        {showForm && (
+          <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
 
-          <form
-            onSubmit={handleSubmit}
-            className="mt-6 grid gap-5 sm:grid-cols-2"
-          >
-            <div>
-              <label
-                htmlFor="name"
-                className="mb-2 block text-sm font-medium text-slate-700"
-              >
-                Car name
-              </label>
-
-              <input
-                id="name"
-                name="name"
-                value={form.name}
-                onChange={handleChange}
-                required
-                placeholder="e.g. Toyota Corolla"
-                className="w-full rounded-lg border border-slate-300 px-4 py-3"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="year"
-                className="mb-2 block text-sm font-medium text-slate-700"
-              >
-                Model year
-              </label>
-
-              <input
-                id="year"
-                name="year"
-                type="number"
-                min="1980"
-                max={new Date().getFullYear() + 1}
-                value={form.year}
-                onChange={handleChange}
-                required
-                className="w-full rounded-lg border border-slate-300 px-4 py-3"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="type"
-                className="mb-2 block text-sm font-medium text-slate-700"
-              >
-                Car type
-              </label>
-
-              <select
-                id="type"
-                name="type"
-                value={form.type}
-                onChange={handleChange}
-                className="w-full rounded-lg border border-slate-300 px-4 py-3"
-              >
-                {["Sedan", "SUV", "Hatchback", "Luxury", "Pickup", "Van"].map(
-                  (type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  )
-                )}
-              </select>
-            </div>
-
-            <div>
-              <label
-                htmlFor="transmission"
-                className="mb-2 block text-sm font-medium text-slate-700"
-              >
-                Transmission
-              </label>
-
-              <select
-                id="transmission"
-                name="transmission"
-                value={form.transmission}
-                onChange={handleChange}
-                className="w-full rounded-lg border border-slate-300 px-4 py-3"
-              >
-                {["Automatic", "Manual"].map((transmission) => (
-                  <option key={transmission} value={transmission}>
-                    {transmission}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label
-                htmlFor="seats"
-                className="mb-2 block text-sm font-medium text-slate-700"
-              >
-                Seats
-              </label>
-
-              <input
-                id="seats"
-                name="seats"
-                type="number"
-                min="1"
-                max="20"
-                value={form.seats}
-                onChange={handleChange}
-                required
-                className="w-full rounded-lg border border-slate-300 px-4 py-3"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="price"
-                className="mb-2 block text-sm font-medium text-slate-700"
-              >
-                Price per day (ETB)
-              </label>
-
-              <input
-                id="price"
-                name="price"
-                type="number"
-                min="1"
-                step="0.01"
-                value={form.price}
-                onChange={handleChange}
-                required
-                placeholder="e.g. 2500"
-                className="w-full rounded-lg border border-slate-300 px-4 py-3"
-              />
-            </div>
-
-
-            <div className="space-y-3 sm:col-span-2">
-              <label
-                htmlFor="photoUrls"
-                className="block text-sm font-medium text-slate-700"
-              >
-                Car Photo URLs (optional)
-              </label>
-
-              <textarea
-                id="photoUrls"
-                value={photoUrls}
-                onChange={handlePhotoUrlsChange}
-                rows={3}
-                placeholder={
-                  "Enter one image URL per line:\nhttps://example.com/car1.jpg\nhttps://example.com/car2.jpg"
-                }
-                className="w-full rounded-xl border border-slate-300 px-4 py-3"
-              />
-
+            <form
+              onSubmit={handleSubmit}
+              className="mt-6 grid gap-5 sm:grid-cols-2"
+            >
               <div>
                 <label
-                  htmlFor="photoUploads"
-                  className="block text-sm font-medium text-slate-700"
+                  htmlFor="name"
+                  className="mb-2 block text-sm font-medium text-slate-700"
                 >
-                  Upload Photos From Your Computer
+                  Car name
                 </label>
 
                 <input
-                  id="photoUploads"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handlePhotoUpload}
-                  className="mt-2 block w-full rounded-xl border border-slate-300 p-3"
+                  id="name"
+                  name="name"
+                  value={form.name}
+                  onChange={handleChange}
+                  required
+                  placeholder="e.g. Toyota Corolla"
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="year"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Model year
+                </label>
+
+                <input
+                  id="year"
+                  name="year"
+                  type="number"
+                  min="1980"
+                  max={new Date().getFullYear() + 1}
+                  value={form.year}
+                  onChange={handleChange}
+                  required
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="type"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Car type
+                </label>
+
+                <select
+                  id="type"
+                  name="type"
+                  value={form.type}
+                  onChange={handleChange}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3"
+                >
+                  {["Sedan", "SUV", "Hatchback", "Luxury", "Pickup", "Van"].map(
+                    (type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="transmission"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Transmission
+                </label>
+
+                <select
+                  id="transmission"
+                  name="transmission"
+                  value={form.transmission}
+                  onChange={handleChange}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3"
+                >
+                  {["Automatic", "Manual"].map((transmission) => (
+                    <option key={transmission} value={transmission}>
+                      {transmission}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="seats"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Seats
+                </label>
+
+                <input
+                  id="seats"
+                  name="seats"
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={form.seats}
+                  onChange={handleChange}
+                  required
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="price"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Price per day (ETB)
+                </label>
+
+                <input
+                  id="price"
+                  name="price"
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  value={form.price}
+                  onChange={handleChange}
+                  required
+                  placeholder="e.g. 2500"
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3"
+                />
+              </div>
+
+
+              <div className="space-y-3 sm:col-span-2">
+                <label
+                  htmlFor="photoUrls"
+                  className="block text-sm font-medium text-slate-700"
+                >
+                  Car Photo URLs (optional)
+                </label>
+
+                <textarea
+                  id="photoUrls"
+                  value={photoUrls}
+                  onChange={handlePhotoUrlsChange}
+                  rows={3}
+                  placeholder={
+                    "Enter one image URL per line:\nhttps://example.com/car1.jpg\nhttps://example.com/car2.jpg"
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3"
                 />
 
-                <p className="mt-1 text-xs text-slate-500">
-                  Maximum {MAX_PHOTOS} photos per car. Each uploaded photo
-                  must be 350 KB or smaller.
-                </p>
+                <div>
+                  <label
+                    htmlFor="photoUploads"
+                    className="block text-sm font-medium text-slate-700"
+                  >
+                    Upload Photos From Your Computer
+                  </label>
 
-                <p className="mt-1 text-xs font-medium text-slate-600">
-                  {totalPhotoCount} of {MAX_PHOTOS} photos selected
-                </p>
-              </div>
-            </div>
+                  <input
+                    id="photoUploads"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handlePhotoUpload}
+                    className="mt-2 block w-full rounded-xl border border-slate-300 p-3"
+                  />
 
-            {existingImages.length > 0 && (
-              <div className="sm:col-span-2">
-                <h3 className="mb-3 text-sm font-semibold text-slate-700">
-                  Current photos
-                </h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Maximum {MAX_PHOTOS} photos per car. Each uploaded photo
+                    must be 350 KB or smaller.
+                  </p>
 
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-                  {existingImages.map((src, index) => (
-                    <div key={`${src}-${index}`} className="relative">
-
-                      <Image
-                        src={src}
-                        alt={`Current car photo ${index + 1}`}
-                        width={400}
-                        height={280}
-                        unoptimized
-                        className="h-28 w-full rounded-lg border border-slate-200 object-cover"
-                      />
-
-
-                      <button
-                        type="button"
-                        onClick={() => removeExistingImage(index)}
-                        className="mt-2 w-full rounded-lg border border-red-200 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+                  <p className="mt-1 text-xs font-medium text-slate-600">
+                    {totalPhotoCount} of {MAX_PHOTOS} photos selected
+                  </p>
                 </div>
               </div>
-            )}
 
-            {uploadedImages.length > 0 && (
-              <div className="sm:col-span-2">
-                <h3 className="mb-3 text-sm font-semibold text-slate-700">
-                  Uploaded photos
-                </h3>
+              {existingImages.length > 0 && (
+                <div className="sm:col-span-2">
+                  <h3 className="mb-3 text-sm font-semibold text-slate-700">
+                    Current photos
+                  </h3>
 
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-                  {uploadedImages.map((src, index) => (
-                    <div key={`${src.slice(-30)}-${index}`} className="relative">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+                    {existingImages.map((src, index) => (
+                      <div key={`${src}-${index}`} className="relative">
 
-                      <Image
-                        src={src}
-                        alt={`Uploaded car photo ${index + 1}`}
-                        width={400}
-                        height={280}
-                        unoptimized
-                        className="h-28 w-full rounded-lg border border-slate-200 object-cover"
-                      />
+                        <Image
+                          src={src}
+                          alt={`Current car photo ${index + 1}`}
+                          width={400}
+                          height={280}
+                          unoptimized
+                          className="h-28 w-full rounded-lg border border-slate-200 object-cover"
+                        />
 
 
-                      <button
-                        type="button"
-                        onClick={() => removeUploadedImage(index)}
-                        className="mt-2 w-full rounded-lg border border-red-200 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+                        <button
+                          type="button"
+                          onClick={() => removeExistingImage(index)}
+                          className="mt-2 w-full rounded-lg border border-red-200 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-
-            {pendingUrlCount > 0 && (
-              <div className="sm:col-span-2">
-                <p className="text-sm text-slate-600">
-                  {pendingUrlCount} photo URL
-                  {pendingUrlCount === 1 ? "" : "s"} will be saved when you
-                  submit the form.
-                </p>
-              </div>
-            )}
-
-            <div className="sm:col-span-2">
-              <label
-                htmlFor="description"
-                className="mb-2 block text-sm font-medium text-slate-700"
-              >
-                Description
-              </label>
-
-              <textarea
-                id="description"
-                name="description"
-                value={form.description}
-                onChange={handleChange}
-                required
-                rows={4}
-                placeholder="Describe your car and rental terms."
-                className="w-full rounded-lg border border-slate-300 px-4 py-3"
-              />
-            </div>
-            <CarLocationPicker
-              address={form.location}
-              onAddressChange={(location) =>
-                setForm((current) => ({ ...current, location }))
-              }
-              coordinates={form.coordinates}
-              onCoordinatesChange={(coordinates) =>
-                setForm((current) => ({ ...current, coordinates }))
-              }
-            />
-            <div className="flex flex-wrap gap-3 sm:col-span-2">
-              <button
-                type="submit"
-                className="rounded-lg bg-emerald-700 px-5 py-3 font-semibold text-white hover:bg-emerald-800"
-              >
-                {editingId !== null ? "Save changes" : "Add car"}
-              </button>
-
-              {editingId !== null && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    resetForm();
-                    setSuccess("");
-                  }}
-                  className="rounded-lg border border-slate-300 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  Cancel edit
-                </button>
               )}
-            </div>
-          </form>
-        </section>
+
+              {uploadedImages.length > 0 && (
+                <div className="sm:col-span-2">
+                  <h3 className="mb-3 text-sm font-semibold text-slate-700">
+                    Uploaded photos
+                  </h3>
+
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+                    {uploadedImages.map((src, index) => (
+                      <div key={`${src.slice(-30)}-${index}`} className="relative">
+
+                        <Image
+                          src={src}
+                          alt={`Uploaded car photo ${index + 1}`}
+                          width={400}
+                          height={280}
+                          unoptimized
+                          className="h-28 w-full rounded-lg border border-slate-200 object-cover"
+                        />
+
+
+                        <button
+                          type="button"
+                          onClick={() => removeUploadedImage(index)}
+                          className="mt-2 w-full rounded-lg border border-red-200 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {pendingUrlCount > 0 && (
+                <div className="sm:col-span-2">
+                  <p className="text-sm text-slate-600">
+                    {pendingUrlCount} photo URL
+                    {pendingUrlCount === 1 ? "" : "s"} will be saved when you
+                    submit the form.
+                  </p>
+                </div>
+              )}
+
+              <div className="sm:col-span-2">
+                <label
+                  htmlFor="description"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Description
+                </label>
+
+                <textarea
+                  id="description"
+                  name="description"
+                  value={form.description}
+                  onChange={handleChange}
+                  required
+                  rows={4}
+                  placeholder="Describe your car and rental terms."
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3"
+                />
+              </div>
+              <CarLocationPicker
+                address={form.location}
+                onAddressChange={(location) =>
+                  setForm((current) => ({ ...current, location }))
+                }
+                coordinates={form.coordinates}
+                onCoordinatesChange={(coordinates) =>
+                  setForm((current) => ({ ...current, coordinates }))
+                }
+              />
+              <div className="flex flex-wrap gap-3 sm:col-span-2">
+                <button
+                  type="submit"
+                  className="rounded-lg bg-emerald-700 px-5 py-3 font-semibold text-white hover:bg-emerald-800"
+                >
+                  {editingId !== null ? "Save changes" : "Add car"}
+                </button>
+
+                {editingId !== null && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetForm();
+                      setSuccess("");
+                    }}
+                    className="rounded-lg border border-slate-300 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Cancel edit
+                  </button>
+                )}
+              </div>
+            </form>
+          </section>
+        )}
 
         <section className="mt-8">
           <div className="mb-4 flex items-center justify-between">

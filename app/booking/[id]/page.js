@@ -153,9 +153,10 @@ export default function BookingPage({ params }) {
 
     const booking = {
       id: `booking-${Date.now()}`,
-      carId: car.id,
+      carId: String(car.id),
       carName: car.name,
       carImage: car.image,
+      dailyPrice: Number(car.price),
       pricePerDay: Number(car.price),
       pickupDate,
       returnDate,
@@ -168,6 +169,10 @@ export default function BookingPage({ params }) {
       status: "Pending",
       createdAt: new Date().toISOString(),
       customer: currentSession,
+
+      // Owner information for the owner dashboard
+      ownerId: car.ownerId || null,
+      ownerEmail: car.ownerEmail || null,
     };
 
     try {
